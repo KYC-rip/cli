@@ -4,6 +4,16 @@ All notable changes to **kyc-cli** and **sshwap** are documented here.
 The format is loosely [Keep a Changelog](https://keepachangelog.com/);
 versioning follows [SemVer](https://semver.org/).
 
+## [0.1.18] — 2026-05-09
+
+### Fixed
+- Fullscreen QR (`q`) now bypasses the entire card/header/hint layout
+  in `View()`. The styleCard wrapper has `Width(68)` + `Padding(1,2)` +
+  rounded border, and applying that processing to a multi-line
+  BG-painted QR string was injecting blank rows between QR rows
+  (visible as alternating module-row / dark-gap pattern). Fullscreen
+  now `lipgloss.Place`s the QR directly with no decoration.
+
 ## [0.1.17] — 2026-05-09
 
 ### Added

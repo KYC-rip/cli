@@ -679,6 +679,23 @@ func (m Model) View() string {
 	if m.width == 0 {
 		return ""
 	}
+	// Fullscreen QR bypasses the card / header / hint layout entirely so
+	// the QR has no horizontal width constraint and no padding/border
+	// processing that could mangle its multi-line BG-painted rows.
+	if m.qrFullScreen {
+		var addr string
+		if m.tab == tabSwap && m.trade != nil {
+			addr = m.trade.DepositAddress
+		} else if m.tab == tabTrack && m.trackTrade != nil {
+			addr = m.trackTrade.DepositAddress
+		}
+		if addr != "" {
+			body := strings.TrimRight(renderQR(addr), "\n") +
+				"\n\n" + styleOk.Render(addr) +
+				"\n" + styleDim.Render("q · esc — back to order")
+			return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, body)
+		}
+	}
 	header := m.renderHeader()
 	var body string
 	switch m.tab {
@@ -950,17 +967,18 @@ func (m Model) renderTrack() string {
 	return lipgloss.JoinVertical(lipgloss.Left, rows...)
 }
 
-// renderQRFullScreen returns the QR alone, centered, with no other layout
-// content. Triggered by 'q' in stOrdered / Track to give long deposit
-// addresses room to breathe without bumping into the side-by-side layout.
+// renderQRFullScreen returns the QR alone, with no other layout content.
+// Triggered by 'q' in stOrdered / Track to give long deposit addresses
+// room to breathe without bumping into the side-by-side layout. Built
+// with raw string concatenation rather than lipgloss.JoinVertical —
+// JoinVertical's Center alignment was injecting blank rows between QR
+// rows when applied to a multi-line BG-painted string.
 func (m Model) renderQRFullScreen(addr string) string {
-	qr := renderQR(addr)
+	qr := strings.TrimRight(renderQR(addr), "\n")
 	if qr == "" {
 		return styleDim.Render("(no QR available — copy the address text above)")
 	}
-	hint := styleDim.Render("q · esc — back to order")
-	addrLine := styleOk.Render(addr)
-	return lipgloss.JoinVertical(lipgloss.Center, qr, "", addrLine, "", hint)
+	return qr + "\n\n" + styleOk.Render(addr) + "\n\n" + styleDim.Render("q · esc — back to order")
 }
 
 func (m Model) renderAbout() string {
