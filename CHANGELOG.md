@@ -4,6 +4,43 @@ All notable changes to **kyc-cli** and **sshwap** are documented here.
 The format is loosely [Keep a Changelog](https://keepachangelog.com/);
 versioning follows [SemVer](https://semver.org/).
 
+## [0.1.8] — 2026-05-09
+
+### Fixed
+- TUI picker hotkey hijack: typing `LTC`, `TRX`, `TRC20`, `TON`, etc.
+  no longer jumps to the Track tab. Pickers are now flagged as typing
+  states so the global `s/t/a` shortcuts don't fire while picking.
+  Regression test added.
+
+### Added
+- `internal/update`: `archive/zip` extraction so curl|sh-installed
+  Windows users can self-update.
+
+## [0.1.7] — 2026-05-09
+
+### Changed
+- `kyc-cli --help` now lists the `update` subcommand explicitly
+  (custom `flag.Usage` — `flag.Parse` doesn't surface subcommands).
+
+## [0.1.6] — 2026-05-09
+
+### Added
+- `kyc-cli update` — self-update subcommand. Downloads the matching
+  release tarball, verifies sha256 against `checksums.txt`, atomic-
+  swap with `.bak` rollback. Refuses under Homebrew Cellar / Scoop /
+  /usr/bin (defers to package manager).
+- `kyc-cli update --check` — non-destructive status report.
+- Startup nudge: one-line stderr note if a newer release exists,
+  throttled to once per 24h via `$XDG_CACHE_HOME/kyc-cli/lastcheck`.
+
+## [0.1.5] — 2026-05-09
+
+### Verified
+- Release pipeline fully automated: `git tag vX.Y.Z && git push --tags`
+  cross-builds + auto-publishes to GitHub Releases, Homebrew tap, AND
+  Scoop bucket in one shot. Brew commit `52b3b72`, Scoop commit
+  `b4a85bf` — first end-to-end automated multi-tap release.
+
 ## [0.1.4] — 2026-05-09
 
 ### Added

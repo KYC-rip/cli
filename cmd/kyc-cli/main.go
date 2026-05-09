@@ -8,6 +8,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"golang.org/x/term"
 
 	"github.com/kyc-rip/cli/internal/api"
 	"github.com/kyc-rip/cli/internal/tui"
@@ -51,6 +52,17 @@ func main() {
 	if *showVersion {
 		fmt.Printf("kyc-cli %s (%s)\n", version, commit)
 		return
+	}
+
+	// Refuse to run the TUI when stdin/stdout aren't tied to a terminal —
+	// piping / CI contexts otherwise hit a cryptic "could not open a new
+	// TTY" error from bubbletea. This lets us emit a useful hint and
+	// non-zero exit cleanly.
+	if !term.IsTerminal(int(os.Stdin.Fd())) || !term.IsTerminal(int(os.Stdout.Fd())) {
+		fmt.Fprintln(os.Stderr, "kyc-cli is interactive — run it in a terminal (not piped or in a non-tty CI step).")
+		fmt.Fprintln(os.Stderr, "  ssh swap.kyc.rip      # run the hosted version")
+		fmt.Fprintln(os.Stderr, "  kyc-cli --version     # for scripting")
+		os.Exit(1)
 	}
 
 	// Background nudge: print a single-line note to stderr if a newer
