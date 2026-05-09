@@ -481,8 +481,17 @@ func (m Model) updateAmount(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 func (m Model) updateAddress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if msg.String() == "enter" {
-		if strings.TrimSpace(m.addrIn.Value()) == "" {
+		addr := strings.TrimSpace(m.addrIn.Value())
+		if addr == "" {
 			m.swapErr = "destination address required"
+			return m, nil
+		}
+		// Pre-flight format heuristic — catches typos before sending
+		// the order to upstream engines (which may take real $$ to
+		// learn the address was malformed).
+		toTicker, toNet := splitTickerNet(m.to)
+		if ok, hint := validateAddress(toTicker, toNet, addr); !ok {
+			m.swapErr = hint
 			return m, nil
 		}
 		m.addrIn.Blur()
