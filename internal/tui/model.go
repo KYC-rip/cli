@@ -102,10 +102,12 @@ type Model struct {
 	trade        *api.Trade
 	swapErr      string
 	pollOn       bool
-	qrFullScreen bool   // 'q' in stOrdered or Track expands the QR to fill the terminal.
-	qrImageMode  bool   // 'g' toggles iTerm2 inline-image protocol — Warp/iTerm/WezTerm.
-	copyToast    string // ephemeral "📋 copied …" feedback; cleared by clearToastMsg.
-	depositFocus int    // 0 = address, 1 = QR URL. up/down cycles, enter copies.
+	qrFullScreen  bool   // 'q' in stOrdered or Track expands the QR to fill the terminal.
+	qrImageMode   bool   // 'g' toggles iTerm2 inline-image protocol — Warp/iTerm/WezTerm.
+	copyToast     string // ephemeral "📋 copied …" feedback; cleared by clearToastMsg.
+	depositFocus  int    // 0 = address, 1 = QR URL. up/down cycles, enter copies.
+	pendingOSC52  string // OSC 52 clipboard escape to prepend to next View() output, then clear.
+	pendingOSC52T uint64 // monotonically-bumped token so clearOSC52Msg only clears its own emission.
 
 	// track tab
 	trackIn    textinput.Model
@@ -160,6 +162,7 @@ type statusDoneMsg struct {
 }
 type tickMsg time.Time
 type clearToastMsg struct{}
+type clearOSC52Msg struct{ token uint64 }
 
 // --- commands ---
 
@@ -365,6 +368,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.copyToast = ""
 		return m, nil
 
+	case clearOSC52Msg:
+		// Only clear if our token is still the latest — avoids clobbering a
+		// fresher copy that fired between this tick being scheduled and now.
+		if msg.token == m.pendingOSC52T {
+			m.pendingOSC52 = ""
+		}
+		return m, nil
+
 	case tickMsg:
 		var cmds []tea.Cmd
 		if m.pollOn && m.trade != nil && m.trade.ID != "" && !isTerminal(m.trade.Status) {
@@ -449,20 +460,29 @@ func (m Model) handleDepositKeys(msg tea.KeyMsg) (Model, tea.Cmd, bool) {
 			payload = qrBrowserURL(activeAddr)
 		}
 		m.copyToast = label
-		return m, tea.Sequence(
-			tea.Println(osc52Clipboard(payload)),
+		m.pendingOSC52T++
+		m.pendingOSC52 = osc52Clipboard(payload)
+		tok := m.pendingOSC52T
+		return m, tea.Batch(
+			tea.Tick(50*time.Millisecond, func(_ time.Time) tea.Msg { return clearOSC52Msg{token: tok} }),
 			tea.Tick(2*time.Second, func(_ time.Time) tea.Msg { return clearToastMsg{} }),
 		), true
 	case "c":
 		m.copyToast = "📋 address copied to clipboard"
-		return m, tea.Sequence(
-			tea.Println(osc52Clipboard(activeAddr)),
+		m.pendingOSC52T++
+		m.pendingOSC52 = osc52Clipboard(activeAddr)
+		tok := m.pendingOSC52T
+		return m, tea.Batch(
+			tea.Tick(50*time.Millisecond, func(_ time.Time) tea.Msg { return clearOSC52Msg{token: tok} }),
 			tea.Tick(2*time.Second, func(_ time.Time) tea.Msg { return clearToastMsg{} }),
 		), true
 	case "C":
 		m.copyToast = "📋 QR URL copied to clipboard"
-		return m, tea.Sequence(
-			tea.Println(osc52Clipboard(qrBrowserURL(activeAddr))),
+		m.pendingOSC52T++
+		m.pendingOSC52 = osc52Clipboard(qrBrowserURL(activeAddr))
+		tok := m.pendingOSC52T
+		return m, tea.Batch(
+			tea.Tick(50*time.Millisecond, func(_ time.Time) tea.Msg { return clearOSC52Msg{token: tok} }),
 			tea.Tick(2*time.Second, func(_ time.Time) tea.Msg { return clearToastMsg{} }),
 		), true
 	}
@@ -745,6 +765,17 @@ func (m Model) View() string {
 	if m.width == 0 {
 		return ""
 	}
+	out := m.viewBody()
+	// Prepend any pending OSC 52 clipboard escape so it rides one frame and
+	// is processed by the user's terminal. tea.Println doesn't reliably
+	// emit escapes in alt-screen, so we inline it here.
+	if m.pendingOSC52 != "" {
+		out = m.pendingOSC52 + out
+	}
+	return out
+}
+
+func (m Model) viewBody() string {
 	// Fullscreen QR bypasses the card / header / hint layout entirely so
 	// the QR has no horizontal width constraint and no padding/border
 	// processing that could mangle its multi-line BG-painted rows.

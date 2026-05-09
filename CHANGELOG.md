@@ -4,6 +4,17 @@ All notable changes to **kyc-cli** and **sshwap** are documented here.
 The format is loosely [Keep a Changelog](https://keepachangelog.com/);
 versioning follows [SemVer](https://semver.org/).
 
+## [0.1.26] — 2026-05-09
+
+### Fixed
+- **OSC 52 clipboard copy now actually fires.** v0.1.22-25 was emitting
+  the escape via `tea.Println(osc52Clipboard(...))` which doesn't
+  reliably reach the terminal in alt-screen mode (Codex review). Switched
+  to a one-frame `pendingOSC52` field that the top-level `View()`
+  prepends to the next frame's output, then a 50ms `tea.Tick` clears it
+  via a token-checked `clearOSC52Msg` so concurrent copies don't clobber
+  each other. Address copy + QR-URL copy both now write through reliably.
+
 ## [0.1.25] — 2026-05-09
 
 ### Fixed
