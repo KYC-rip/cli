@@ -80,13 +80,13 @@ release:
   draft: false
   prerelease: auto
   github:
-    owner: xbtoshi
+    owner: kyc-rip
     name: sshwap
 
 brews:
   - name: kyc-cli
     repository:
-      owner: xbtoshi
+      owner: kyc-rip
       name: homebrew-tap
     homepage: https://swap.kyc.rip
     description: "Terminal-only crypto swap (the kyc.rip aggregator as a TUI)"

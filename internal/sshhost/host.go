@@ -18,8 +18,8 @@ import (
 	"github.com/muesli/termenv"
 	"golang.org/x/crypto/ssh"
 
-	"github.com/xbtoshi/sshwap/internal/api"
-	"github.com/xbtoshi/sshwap/internal/tui"
+	"github.com/kyc-rip/sshwap/internal/api"
+	"github.com/kyc-rip/sshwap/internal/tui"
 )
 
 // Config controls listener and runtime caps.

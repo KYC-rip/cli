@@ -8,8 +8,8 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/xbtoshi/sshwap/internal/api"
-	"github.com/xbtoshi/sshwap/internal/tui"
+	"github.com/kyc-rip/sshwap/internal/api"
+	"github.com/kyc-rip/sshwap/internal/tui"
 )
 
 // Set by goreleaser via -ldflags="-X main.version=… -X main.commit=…".

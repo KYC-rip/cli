@@ -12,7 +12,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	zone "github.com/lrstanley/bubblezone"
 
-	"github.com/xbtoshi/sshwap/internal/api"
+	"github.com/kyc-rip/sshwap/internal/api"
 )
 
 // zone IDs — string constants used to mark interactive regions and
@@ -831,7 +831,7 @@ func (m Model) renderAbout() string {
 		"  " + fp,
 		"",
 		styleAccent.Render("Source"),
-		"  github.com/xbtoshi/sshwap",
+		"  github.com/kyc-rip/sshwap",
 		"",
 		styleDim.Render("press s · t · ctrl+c"),
 	}
