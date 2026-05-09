@@ -85,9 +85,16 @@ release:
 
 brews:
   - name: kyc-cli
+    # Skip pushing the formula automatically unless a cross-repo PAT
+    # is wired in (HOMEBREW_TAP_TOKEN secret + release.yml exports it).
+    # Releases without the PAT still publish the binary archives; the
+    # tap formula is updated by hand from /tmp/tap-work/. Once the
+    # token is configured, `skip_upload: auto` flips to a real push.
+    skip_upload: auto
     repository:
       owner: kyc-rip
       name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
     homepage: https://swap.kyc.rip
     description: "Terminal-only crypto swap (the kyc.rip aggregator as a TUI)"
     license: MIT

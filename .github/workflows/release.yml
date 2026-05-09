@@ -27,3 +27,7 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Optional cross-repo PAT for pushing the brew formula update
+          # to kyc-rip/homebrew-tap. Leave unset to skip that step
+          # (see .goreleaser.yml brews.skip_upload).
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN || secrets.GITHUB_TOKEN }}
