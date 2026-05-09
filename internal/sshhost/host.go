@@ -153,9 +153,14 @@ func (s *Server) handle(sess gssh.Session) {
 	// Seed initial Width/Height on the model so View() renders on first
 	// frame (otherwise alt-screen flips with empty content and the user
 	// sees a black void until they press a key).
+	user := sess.User()
+	if user == "" {
+		user = "guest"
+	}
 	cfg := tui.Config{
 		Client:        s.client,
 		Fingerprint:   s.Fingerprint(),
+		Username:      user,
 		InitialWidth:  pty.Window.Width,
 		InitialHeight: pty.Window.Height,
 	}

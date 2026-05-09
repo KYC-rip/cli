@@ -14,17 +14,26 @@ import (
 	"github.com/xbtoshi/sshwap/internal/api"
 )
 
+// --- tabs ---
+
 type tab int
 
 const (
 	tabSwap tab = iota
 	tabTrack
+	tabAbout
 )
+
+// --- swap wizard states ---
 
 type swapState int
 
 const (
-	stInput swapState = iota
+	stPickFrom swapState = iota
+	stPickTo
+	stAmount
+	stAddress
+	stMemo // shown only when destination needs memo
 	stQuoting
 	stQuoted
 	stCreating
@@ -33,24 +42,16 @@ const (
 )
 
 const (
-	fldFrom = iota
-	fldTo
-	fldAmount
-	fldAddress
-	fldMemo
-	fldButton
-	numFields
-)
-
-const (
 	pollInterval = 5 * time.Second
 	apiTimeout   = 12 * time.Second
 )
 
+// --- config ---
+
 type Config struct {
 	Client      *api.Client
 	Fingerprint string
-	HostBanner  string
+	Username    string // SSH session username for the @swap header tag
 
 	// InitialWidth / InitialHeight let SSH hosts seed dimensions before
 	// the first WindowSizeMsg arrives, so the alt-screen flip on
@@ -59,28 +60,28 @@ type Config struct {
 	InitialHeight int
 }
 
+// --- model ---
+
 type Model struct {
 	cfg Config
 
 	width, height int
 	tab           tab
 
-	// swap form
-	state    swapState
-	field    int
-	from     textinput.Model
-	to       textinput.Model
-	amount   textinput.Model
-	address  textinput.Model
-	memo     textinput.Model
-	quote    *api.Estimate
-	trade    *api.Trade
-	swapErr  string
-	pollOn   bool
-	pollTick time.Time
+	// wizard state
+	state   swapState
+	from    string // "BTC" or "USDT-TRC20"
+	to      string
+	amtIn   textinput.Model
+	addrIn  textinput.Model
+	memoIn  textinput.Model
+	quote   *api.Estimate
+	trade   *api.Trade
+	swapErr string
+	pollOn  bool
 
-	// track form
-	trackID    textinput.Model
+	// track tab
+	trackIn    textinput.Model
 	trackTrade *api.Trade
 	trackErr   string
 	trackBusy  bool
@@ -92,22 +93,17 @@ func New(cfg Config) Model {
 		ti.Placeholder = ph
 		ti.CharLimit = 128
 		ti.Width = w
-		ti.Prompt = "▎ "
+		ti.Prompt = ""
 		return ti
 	}
-	from := mk("e.g. BTC, USDT-TRC20", 28)
-	from.Focus()
 	m := Model{
 		cfg:     cfg,
 		tab:     tabSwap,
-		state:   stInput,
-		field:   fldFrom,
-		from:    from,
-		to:      mk("e.g. XMR, ETH-ERC20", 28),
-		amount:  mk("e.g. 0.01", 18),
-		address: mk("destination wallet address", 60),
-		memo:    mk("optional memo / dest tag", 30),
-		trackID: mk("paste trade id", 40),
+		state:   stPickFrom,
+		amtIn:   mk("e.g. 0.01", 24),
+		addrIn:  mk("destination wallet address", 60),
+		memoIn:  mk("optional memo / dest tag", 30),
+		trackIn: mk("paste trade id", 40),
 	}
 	if cfg.InitialWidth > 0 && cfg.InitialHeight > 0 {
 		m.width = cfg.InitialWidth
@@ -116,9 +112,7 @@ func New(cfg Config) Model {
 	return m
 }
 
-func (m Model) Init() tea.Cmd {
-	return textinput.Blink
-}
+func (m Model) Init() tea.Cmd { return textinput.Blink }
 
 // --- messages ---
 
@@ -131,15 +125,19 @@ type tradeDoneMsg struct {
 	err error
 }
 type statusDoneMsg struct {
-	t   *api.Trade
-	err error
+	t       *api.Trade
+	err     error
+	isTrack bool
 }
 type tickMsg time.Time
 
 // --- commands ---
 
-func (m Model) cmdEstimate(from, fromNet, to, toNet string, amt float64) tea.Cmd {
+func (m Model) cmdEstimate() tea.Cmd {
 	cli := m.cfg.Client
+	from, fromNet := splitTickerNet(m.from)
+	to, toNet := splitTickerNet(m.to)
+	amt, _ := strconv.ParseFloat(strings.TrimSpace(m.amtIn.Value()), 64)
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), apiTimeout)
 		defer cancel()
@@ -148,8 +146,34 @@ func (m Model) cmdEstimate(from, fromNet, to, toNet string, amt float64) tea.Cmd
 	}
 }
 
-func (m Model) cmdCreate(req api.CreateReq) tea.Cmd {
+func (m Model) cmdCreate() tea.Cmd {
 	cli := m.cfg.Client
+	from, fromNet := splitTickerNet(m.from)
+	to, toNet := splitTickerNet(m.to)
+	amt, _ := strconv.ParseFloat(strings.TrimSpace(m.amtIn.Value()), 64)
+	addr := strings.TrimSpace(m.addrIn.Value())
+	memo := strings.TrimSpace(m.memoIn.Value())
+
+	provider := m.quote.Provider
+	engine := m.quote.Engine
+	var hq any
+	if len(m.quote.Routes) > 0 {
+		provider = m.quote.Routes[0].Provider
+		engine = m.quote.Routes[0].Engine
+		hq = m.quote.Routes[0].HoudiniQuote
+	}
+	req := api.CreateReq{
+		Provider:     provider,
+		Engine:       engine,
+		FromCurrency: from,
+		ToCurrency:   to,
+		FromNetwork:  fromNet,
+		ToNetwork:    toNet,
+		AmountFrom:   amt,
+		AddressTo:    addr,
+		AddressMemo:  memo,
+		HoudiniQuote: hq,
+	}
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), apiTimeout)
 		defer cancel()
@@ -164,10 +188,7 @@ func (m Model) cmdStatus(id string, isTrack bool) tea.Cmd {
 		ctx, cancel := context.WithTimeout(context.Background(), apiTimeout)
 		defer cancel()
 		t, err := cli.Status(ctx, id)
-		if isTrack {
-			return statusDoneMsg{t, err}
-		}
-		return statusDoneMsg{t, err}
+		return statusDoneMsg{t, err, isTrack}
 	}
 }
 
@@ -188,22 +209,35 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "ctrl+c", "ctrl+d":
 			return m, tea.Quit
-		case "tab":
-			if m.tab == tabSwap {
-				m.tab = tabTrack
-				m.blurAll()
-				m.trackID.Focus()
-			} else {
-				m.tab = tabSwap
-				m.trackID.Blur()
-				m.focusField()
-			}
-			return m, nil
 		}
+
+		// Global hotkeys (only when NOT actively typing into the active step)
+		if !m.isTypingState() {
+			switch msg.String() {
+			case "s":
+				m.tab = tabSwap
+				return m, nil
+			case "t":
+				m.tab = tabTrack
+				m.trackIn.Focus()
+				return m, nil
+			case "a":
+				m.tab = tabAbout
+				return m, nil
+			}
+		}
+
 		if m.tab == tabSwap {
 			return m.updateSwap(msg)
 		}
-		return m.updateTrack(msg)
+		if m.tab == tabTrack {
+			return m.updateTrack(msg)
+		}
+		// About tab — any key returns to swap
+		if msg.String() == "esc" || msg.String() == "enter" {
+			m.tab = tabSwap
+		}
+		return m, nil
 
 	case estimateDoneMsg:
 		if msg.err != nil {
@@ -227,16 +261,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tickCmd()
 
 	case statusDoneMsg:
-		if msg.err == nil && msg.t != nil {
-			if m.tab == tabTrack {
-				m.trackTrade = msg.t
-				m.trackBusy = false
-			} else {
-				m.trade = msg.t
-			}
-		} else if msg.err != nil && m.tab == tabTrack {
-			m.trackErr = msg.err.Error()
+		if msg.isTrack {
 			m.trackBusy = false
+			if msg.err != nil {
+				m.trackErr = msg.err.Error()
+			} else {
+				m.trackTrade = msg.t
+			}
+			return m, nil
+		}
+		if msg.err == nil && msg.t != nil {
+			m.trade = msg.t
 		}
 		return m, nil
 
@@ -249,159 +284,186 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m *Model) blurAll() {
-	m.from.Blur()
-	m.to.Blur()
-	m.amount.Blur()
-	m.address.Blur()
-	m.memo.Blur()
-}
-
-func (m *Model) focusField() {
-	m.blurAll()
-	switch m.field {
-	case fldFrom:
-		m.from.Focus()
-	case fldTo:
-		m.to.Focus()
-	case fldAmount:
-		m.amount.Focus()
-	case fldAddress:
-		m.address.Focus()
-	case fldMemo:
-		m.memo.Focus()
+// isTypingState returns true when the active step receives raw text
+// input (so we don't intercept letters as global tab hotkeys).
+func (m Model) isTypingState() bool {
+	if m.tab == tabTrack {
+		return m.trackIn.Focused()
 	}
+	if m.tab != tabSwap {
+		return false
+	}
+	switch m.state {
+	case stAmount, stAddress, stMemo:
+		return true
+	}
+	return false
 }
 
 func (m Model) updateSwap(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc":
-		if m.state == stOrdered || m.state == stError || m.state == stQuoted {
-			m.resetSwap()
-			return m, nil
-		}
-	case "up", "shift+tab":
-		if m.state == stInput {
-			m.field = (m.field - 1 + numFields) % numFields
-			m.focusField()
-			return m, nil
-		}
-	case "down":
-		if m.state == stInput {
-			m.field = (m.field + 1) % numFields
-			m.focusField()
-			return m, nil
-		}
-	case "enter":
+		// step back through the wizard
 		switch m.state {
-		case stInput:
-			if m.field == fldButton || m.field == fldMemo {
-				return m.submitQuote()
-			}
-			m.field = (m.field + 1) % numFields
-			m.focusField()
-			return m, nil
-		case stQuoted:
-			return m.submitCreate()
+		case stPickTo:
+			m.state = stPickFrom
+		case stAmount:
+			m.state = stPickTo
+		case stAddress:
+			m.state = stAmount
+		case stMemo:
+			m.state = stAddress
+		case stQuoted, stError:
+			// Back to last input step
+			m.state = stAddress
+			m.swapErr = ""
+		case stOrdered:
+			// reset whole wizard
+			m.resetSwap()
 		}
+		return m, nil
 	}
 
-	// pass through to active textinput
-	if m.state == stInput {
-		var cmd tea.Cmd
-		switch m.field {
-		case fldFrom:
-			m.from, cmd = m.from.Update(msg)
-		case fldTo:
-			m.to, cmd = m.to.Update(msg)
-		case fldAmount:
-			m.amount, cmd = m.amount.Update(msg)
-		case fldAddress:
-			m.address, cmd = m.address.Update(msg)
-		case fldMemo:
-			m.memo, cmd = m.memo.Update(msg)
+	switch m.state {
+	case stPickFrom, stPickTo:
+		return m.updatePicker(msg)
+	case stAmount:
+		return m.updateAmount(msg)
+	case stAddress:
+		return m.updateAddress(msg)
+	case stMemo:
+		return m.updateMemo(msg)
+	case stQuoted:
+		if msg.String() == "enter" {
+			m.state = stCreating
+			return m, m.cmdCreate()
 		}
-		return m, cmd
+	case stError:
+		if msg.String() == "enter" {
+			m.swapErr = ""
+			m.state = stAddress
+		}
 	}
 	return m, nil
 }
 
 func (m *Model) resetSwap() {
-	m.state = stInput
+	m.state = stPickFrom
+	m.from = ""
+	m.to = ""
+	m.amtIn.SetValue("")
+	m.addrIn.SetValue("")
+	m.memoIn.SetValue("")
 	m.quote = nil
 	m.trade = nil
 	m.swapErr = ""
 	m.pollOn = false
-	m.field = fldFrom
-	m.focusField()
 }
 
-func (m Model) submitQuote() (tea.Model, tea.Cmd) {
-	from, fromNet := splitTickerNet(strings.TrimSpace(m.from.Value()))
-	to, toNet := splitTickerNet(strings.TrimSpace(m.to.Value()))
-	amtStr := strings.TrimSpace(m.amount.Value())
-	addr := strings.TrimSpace(m.address.Value())
-	if from == "" || to == "" || amtStr == "" || addr == "" {
-		m.swapErr = "from, to, amount and address are required"
-		m.state = stError
+// updatePicker handles stPickFrom / stPickTo: digits 1-9 pick from the
+// numbered list; any other typing is interpreted as a free-text ticker
+// followed by Enter.
+func (m Model) updatePicker(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	key := msg.String()
+	// Digit shortcut
+	if len(key) == 1 && key >= "1" && key <= "9" {
+		idx := int(key[0]-'0') - 1
+		if idx >= 0 && idx < len(topAssets) {
+			m.assignAsset(topAssets[idx])
+			return m, nil
+		}
+	}
+	// Free-text typing: keep an input visible at the bottom.
+	// Reuse amtIn as a temporary scratch input — too much state otherwise.
+	switch key {
+	case "enter":
+		txt := strings.TrimSpace(m.pickerScratch())
+		if txt == "" {
+			return m, nil
+		}
+		m.assignAsset(strings.ToUpper(txt))
+		m.setPickerScratch("")
+		return m, nil
+	case "backspace":
+		s := m.pickerScratch()
+		if len(s) > 0 {
+			m.setPickerScratch(s[:len(s)-1])
+		}
 		return m, nil
 	}
-	amt, err := strconv.ParseFloat(amtStr, 64)
-	if err != nil || amt <= 0 {
-		m.swapErr = "amount must be a positive number"
-		m.state = stError
-		return m, nil
+	if len(key) == 1 {
+		m.setPickerScratch(m.pickerScratch() + key)
 	}
-	m.state = stQuoting
-	m.swapErr = ""
-	return m, m.cmdEstimate(from, fromNet, to, toNet, amt)
+	return m, nil
 }
 
-func (m Model) submitCreate() (tea.Model, tea.Cmd) {
-	if m.quote == nil {
+// assignAsset commits the picked ticker to the current step and advances.
+func (m *Model) assignAsset(t string) {
+	t = strings.ToUpper(strings.TrimSpace(t))
+	if m.state == stPickFrom {
+		m.from = t
+		m.state = stPickTo
+		return
+	}
+	if m.state == stPickTo {
+		m.to = t
+		m.state = stAmount
+		m.amtIn.Focus()
+	}
+}
+
+func (m Model) updateAmount(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if msg.String() == "enter" {
+		amt, err := strconv.ParseFloat(strings.TrimSpace(m.amtIn.Value()), 64)
+		if err != nil || amt <= 0 {
+			m.swapErr = "amount must be a positive number"
+			return m, nil
+		}
+		m.amtIn.Blur()
+		m.state = stAddress
+		m.addrIn.Focus()
+		m.swapErr = ""
 		return m, nil
 	}
-	from, fromNet := splitTickerNet(strings.TrimSpace(m.from.Value()))
-	to, toNet := splitTickerNet(strings.TrimSpace(m.to.Value()))
-	amt, _ := strconv.ParseFloat(strings.TrimSpace(m.amount.Value()), 64)
-	addr := strings.TrimSpace(m.address.Value())
-	memo := strings.TrimSpace(m.memo.Value())
+	var cmd tea.Cmd
+	m.amtIn, cmd = m.amtIn.Update(msg)
+	return m, cmd
+}
 
-	// Pick best route — use the top one returned by the aggregator.
-	// (POC: aggregator already sorts; future: let user pick.)
-	var route *api.Route
-	if len(m.quote.Routes) > 0 {
-		route = &m.quote.Routes[0]
+func (m Model) updateAddress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if msg.String() == "enter" {
+		if strings.TrimSpace(m.addrIn.Value()) == "" {
+			m.swapErr = "destination address required"
+			return m, nil
+		}
+		m.addrIn.Blur()
+		// Memo is requested upfront for everything; we always show the step
+		// but blank-and-Enter skips it cleanly.
+		m.state = stMemo
+		m.memoIn.Focus()
+		m.swapErr = ""
+		return m, nil
 	}
-	provider := m.quote.Provider
-	engine := m.quote.Engine
-	var hq any
-	if route != nil {
-		provider = route.Provider
-		engine = route.Engine
-		hq = route.HoudiniQuote
-	}
+	var cmd tea.Cmd
+	m.addrIn, cmd = m.addrIn.Update(msg)
+	return m, cmd
+}
 
-	req := api.CreateReq{
-		Provider:     provider,
-		Engine:       engine,
-		FromCurrency: from,
-		ToCurrency:   to,
-		FromNetwork:  fromNet,
-		ToNetwork:    toNet,
-		AmountFrom:   amt,
-		AddressTo:    addr,
-		AddressMemo:  memo,
-		HoudiniQuote: hq,
+func (m Model) updateMemo(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if msg.String() == "enter" {
+		m.memoIn.Blur()
+		m.state = stQuoting
+		return m, m.cmdEstimate()
 	}
-	m.state = stCreating
-	return m, m.cmdCreate(req)
+	var cmd tea.Cmd
+	m.memoIn, cmd = m.memoIn.Update(msg)
+	return m, cmd
 }
 
 func (m Model) updateTrack(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "enter":
-		id := strings.TrimSpace(m.trackID.Value())
+		id := strings.TrimSpace(m.trackIn.Value())
 		if id == "" {
 			return m, nil
 		}
@@ -412,18 +474,32 @@ func (m Model) updateTrack(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "esc":
 		m.trackTrade = nil
 		m.trackErr = ""
-		m.trackID.SetValue("")
+		m.trackIn.SetValue("")
 		return m, nil
 	}
 	var cmd tea.Cmd
-	m.trackID, cmd = m.trackID.Update(msg)
+	m.trackIn, cmd = m.trackIn.Update(msg)
 	return m, cmd
+}
+
+// --- picker scratch (free-text typing buffer for asset pickers) ---
+
+func (m *Model) pickerScratch() string {
+	if m.state == stPickFrom {
+		return m.from // reuse field as buffer
+	}
+	return m.to
+}
+func (m *Model) setPickerScratch(s string) {
+	if m.state == stPickFrom {
+		m.from = s
+	} else {
+		m.to = s
+	}
 }
 
 // --- helpers ---
 
-// splitTickerNet accepts "BTC", "USDT-TRC20", "USDT/TRC20".
-// Returns ticker, network (network "" means default Mainnet).
 func splitTickerNet(in string) (string, string) {
 	in = strings.ToUpper(strings.TrimSpace(in))
 	for _, sep := range []string{"-", "/", ":"} {
@@ -446,8 +522,7 @@ func fmtAmt(n float64) string {
 	if n == 0 {
 		return "—"
 	}
-	s := strconv.FormatFloat(n, 'f', -1, 64)
-	return s
+	return strconv.FormatFloat(n, 'f', -1, 64)
 }
 
 // --- view ---
@@ -463,71 +538,130 @@ func (m Model) View() string {
 		body = m.renderSwap()
 	case tabTrack:
 		body = m.renderTrack()
+	case tabAbout:
+		body = m.renderAbout()
 	}
-	footer := m.renderFooter()
+	hint := m.renderHint()
 
-	return lipgloss.JoinVertical(lipgloss.Left, header, "", body, "", footer)
+	// Centered card layout.
+	card := lipgloss.JoinVertical(lipgloss.Left, header, "", body)
+	cardBox := styleCard.Render(card)
+
+	// Stack: card centered + hint bar at bottom
+	stack := lipgloss.JoinVertical(lipgloss.Center, cardBox, "", styleDim.Render(hint))
+	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, stack)
 }
 
 func (m Model) renderHeader() string {
-	tabSwap := "Swap"
-	tabTrack := "Track"
-	if m.tab == 0 {
-		tabSwap = styleTabActive.Render(tabSwap)
-		tabTrack = styleTabIdle.Render(tabTrack)
-	} else {
-		tabSwap = styleTabIdle.Render(tabSwap)
-		tabTrack = styleTabActive.Render(tabTrack)
+	user := m.cfg.Username
+	if user == "" {
+		user = "kyc.rip"
 	}
-	title := styleTitle.Render("kyc.rip — swap")
-	return lipgloss.JoinHorizontal(lipgloss.Top,
-		title,
-		"   ",
-		tabSwap, "  ", tabTrack,
-	)
+	left := styleUser.Render(user + "@swap")
+	tabs := []string{
+		tabRender("Swap", m.tab == tabSwap),
+		tabRender("Track", m.tab == tabTrack),
+		tabRender("About", m.tab == tabAbout),
+	}
+	right := strings.Join(tabs, "  ")
+	// Spacer flex
+	spacerWidth := cardInnerWidth - lipgloss.Width(left) - lipgloss.Width(right)
+	if spacerWidth < 1 {
+		spacerWidth = 1
+	}
+	spacer := strings.Repeat(" ", spacerWidth)
+	return lipgloss.JoinHorizontal(lipgloss.Top, left, spacer, right)
+}
+
+func tabRender(name string, active bool) string {
+	if active {
+		return styleTabActive.Render(name)
+	}
+	return styleTabIdle.Render(name)
 }
 
 func (m Model) renderSwap() string {
 	switch m.state {
-	case stOrdered:
-		return m.renderOrdered()
-	case stQuoted:
-		return m.renderQuoted()
+	case stPickFrom:
+		return m.renderPicker("Sending", m.from)
+	case stPickTo:
+		return m.renderPicker("Receiving", m.to)
+	case stAmount:
+		return m.renderAmount()
+	case stAddress:
+		return m.renderAddress()
+	case stMemo:
+		return m.renderMemo()
 	case stQuoting:
 		return styleDim.Render("fetching best quote across engines…")
+	case stQuoted:
+		return m.renderQuoted()
 	case stCreating:
 		return styleDim.Render("creating order…")
+	case stOrdered:
+		return m.renderOrdered()
 	case stError:
-		return styleErr.Render("error: ") + m.swapErr + "\n\n" + styleDim.Render("press esc to start over")
+		return styleErr.Render("error: ") + m.swapErr + "\n\n" + styleDim.Render("press enter to retry · esc to step back")
 	}
-	return m.renderForm()
+	return ""
 }
 
-func (m Model) renderForm() string {
-	field := func(label string, ti textinput.Model, idx int) string {
-		st := styleField
-		if m.field == idx {
-			st = styleFieldActive
+func (m Model) renderPicker(label, scratch string) string {
+	// Numbered list of top assets (1-9), scratch line at bottom
+	var rows []string
+	rows = append(rows, styleAccent.Render(label+":")+" "+styleDim.Render("pick a number 1-9 or type a ticker"))
+	rows = append(rows, "")
+	for i, a := range topAssets {
+		if i >= 9 {
+			break
 		}
-		return styleDim.Render(label) + "\n" + st.Render(ti.View())
+		rows = append(rows, fmt.Sprintf("  %s  %s", styleWarn.Render(strconv.Itoa(i+1)+"."), a))
 	}
-	btn := styleButtonIdle.Render("[ Get quote ]")
-	if m.field == fldButton {
-		btn = styleButton.Render("[ Get quote ]")
+	rows = append(rows, "")
+	rows = append(rows, styleDim.Render("type:")+" "+styleField.Render(padInput(scratch, 28)))
+	rows = append(rows, "")
+	rows = append(rows, styleButton.Render("[ Enter to confirm ]"))
+	return lipgloss.JoinVertical(lipgloss.Left, rows...)
+}
+
+func (m Model) renderAmount() string {
+	rows := []string{
+		styleAccent.Render("Sending: ") + m.from,
+		styleDim.Render("amount you send"),
+		"",
+		styleFieldActive.Render(padInput(m.amtIn.View(), 24)),
 	}
-	return lipgloss.JoinVertical(lipgloss.Left,
-		styleDim.Render(assetHint(m.width)),
+	if m.swapErr != "" {
+		rows = append(rows, "", styleErr.Render(m.swapErr))
+	}
+	rows = append(rows, "", styleButton.Render("[ Continue ]"))
+	return lipgloss.JoinVertical(lipgloss.Left, rows...)
+}
+
+func (m Model) renderAddress() string {
+	rows := []string{
+		styleAccent.Render("Receiving: ") + m.to,
+		styleDim.Render("destination wallet address"),
 		"",
-		field("From asset (TICKER or TICKER-NET)", m.from, fldFrom),
-		field("To asset", m.to, fldTo),
-		field("Amount (you send)", m.amount, fldAmount),
-		field("Destination address", m.address, fldAddress),
-		field("Memo / dest tag (optional)", m.memo, fldMemo),
+		styleFieldActive.Render(padInput(m.addrIn.View(), 60)),
+	}
+	if m.swapErr != "" {
+		rows = append(rows, "", styleErr.Render(m.swapErr))
+	}
+	rows = append(rows, "", styleButton.Render("[ Continue ]"))
+	return lipgloss.JoinVertical(lipgloss.Left, rows...)
+}
+
+func (m Model) renderMemo() string {
+	rows := []string{
+		styleAccent.Render("Memo / dest tag"),
+		styleDim.Render("optional · leave blank and press Enter to skip"),
 		"",
-		btn,
+		styleFieldActive.Render(padInput(m.memoIn.View(), 30)),
 		"",
-		styleDim.Render("↑/↓ navigate · enter advance / submit · tab switch tab · ctrl+c quit"),
-	)
+		styleButton.Render("[ Get quote ]"),
+	}
+	return lipgloss.JoinVertical(lipgloss.Left, rows...)
 }
 
 func (m Model) renderQuoted() string {
@@ -535,27 +669,24 @@ func (m Model) renderQuoted() string {
 	if q == nil {
 		return ""
 	}
-	var routeName string
+	from, _ := splitTickerNet(m.from)
+	to, _ := splitTickerNet(m.to)
+	routeName := q.Provider
 	if len(q.Routes) > 0 {
 		routeName = q.Routes[0].Provider
-	} else {
-		routeName = q.Provider
 	}
-	rate := fmt.Sprintf("1 %s ≈ %s %s", strings.ToUpper(strings.Split(strings.TrimSpace(m.from.Value()), "-")[0]),
-		strconv.FormatFloat(q.Rate, 'f', -1, 64),
-		strings.ToUpper(strings.Split(strings.TrimSpace(m.to.Value()), "-")[0]))
-	return lipgloss.JoinVertical(lipgloss.Left,
-		styleTitle.Render("Quote"),
-		fmt.Sprintf("Route:    %s (%s)", routeName, q.Engine),
-		fmt.Sprintf("You send: %s", fmtAmt(q.AmountFrom)),
-		fmt.Sprintf("You get:  %s   (ETA ~%dm)", styleOk.Render(fmtAmt(q.AmountTo)), q.ETA),
-		fmt.Sprintf("Rate:     %s", rate),
-		fmt.Sprintf("KYC:      %s", q.KYCRating),
+	rows := []string{
+		styleAccent.Render("Sending:   ") + fmtAmt(q.AmountFrom) + " " + from,
+		styleAccent.Render("Receiving: ") + styleOk.Render("~"+fmtAmt(q.AmountTo)+" "+to),
+		"",
+		styleDim.Render(fmt.Sprintf("1 %s = %s %s", from, fmtAmt(q.Rate), to)),
+		styleDim.Render(fmt.Sprintf("via %s · ETA ~%dm · KYC %s", routeName, q.ETA, q.KYCRating)),
 		"",
 		styleButton.Render("[ Confirm — create order ]"),
 		"",
-		styleDim.Render("enter confirm · esc cancel · ctrl+c quit"),
-	)
+		styleDim.Render("enter confirm · esc back"),
+	}
+	return lipgloss.JoinVertical(lipgloss.Left, rows...)
 }
 
 func (m Model) renderOrdered() string {
@@ -564,59 +695,110 @@ func (m Model) renderOrdered() string {
 		return ""
 	}
 	qr := renderQR(t.DepositAddress)
-	left := lipgloss.JoinVertical(lipgloss.Left,
-		styleTitle.Render("Order created"),
-		fmt.Sprintf("ID:       %s", t.ID),
-		fmt.Sprintf("Status:   %s", styleOk.Render(strings.ToUpper(t.Status))),
-		fmt.Sprintf("Send:     %s %s", fmtAmt(t.FromAmount), strings.ToUpper(t.FromTicker)),
-		fmt.Sprintf("To addr:  %s", styleOk.Render(t.DepositAddress)),
-		func() string {
-			if t.DepositMemo != "" {
-				return fmt.Sprintf("Memo:     %s", styleErr.Render(t.DepositMemo))
-			}
-			return ""
-		}(),
-		fmt.Sprintf("Receive:  %s %s → %s", fmtAmt(t.ToAmount), strings.ToUpper(t.ToTicker), t.AddressUser),
+	left := []string{
+		styleAccent.Render("Order ") + t.ID,
+		styleAccent.Render("Status: ") + styleOk.Render(strings.ToUpper(t.Status)),
 		"",
-		styleDim.Render("auto-refreshing every 5s · esc reset · ctrl+c quit"),
-	)
-	if qr == "" {
-		return left
+		styleDim.Render("Send"),
+		styleOk.Render(fmt.Sprintf("%s %s", fmtAmt(t.FromAmount), strings.ToUpper(t.FromTicker))),
+		"",
+		styleDim.Render("To deposit address"),
+		styleOk.Render(t.DepositAddress),
 	}
-	return lipgloss.JoinHorizontal(lipgloss.Top, left, "  ", qr)
+	if t.DepositMemo != "" {
+		left = append(left, "", styleDim.Render("Memo (REQUIRED)"), styleErr.Render(t.DepositMemo))
+	}
+	left = append(left, "",
+		styleDim.Render(fmt.Sprintf("Receive ~%s %s → %s", fmtAmt(t.ToAmount), strings.ToUpper(t.ToTicker), t.AddressUser)),
+		"",
+		styleDim.Render("auto-refresh every 5s · esc reset"),
+	)
+	leftBlock := lipgloss.JoinVertical(lipgloss.Left, left...)
+	if qr == "" {
+		return leftBlock
+	}
+	return lipgloss.JoinHorizontal(lipgloss.Top, leftBlock, "  ", qr)
 }
 
 func (m Model) renderTrack() string {
-	out := lipgloss.JoinVertical(lipgloss.Left,
-		styleDim.Render("Trade ID"),
-		styleFieldActive.Render(m.trackID.View()),
+	rows := []string{
+		styleAccent.Render("Track"),
+		styleDim.Render("paste a trade id and press Enter"),
 		"",
-		styleDim.Render("enter to look up · esc to clear"),
-	)
+		styleFieldActive.Render(padInput(m.trackIn.View(), 40)),
+	}
 	if m.trackBusy {
-		return out + "\n\n" + styleDim.Render("looking up…")
-	}
-	if m.trackErr != "" {
-		return out + "\n\n" + styleErr.Render("error: "+m.trackErr)
-	}
-	if m.trackTrade != nil {
+		rows = append(rows, "", styleDim.Render("looking up…"))
+	} else if m.trackErr != "" {
+		rows = append(rows, "", styleErr.Render("error: "+m.trackErr))
+	} else if m.trackTrade != nil {
 		t := m.trackTrade
-		out += "\n\n" + lipgloss.JoinVertical(lipgloss.Left,
-			fmt.Sprintf("Status:   %s", styleOk.Render(strings.ToUpper(t.Status))),
-			fmt.Sprintf("Send:     %s %s", fmtAmt(t.FromAmount), strings.ToUpper(t.FromTicker)),
-			fmt.Sprintf("Receive:  %s %s → %s", fmtAmt(t.ToAmount), strings.ToUpper(t.ToTicker), t.AddressUser),
-			fmt.Sprintf("TxIn:     %s", t.TxIn),
-			fmt.Sprintf("TxOut:    %s", t.TxOut),
+		rows = append(rows, "",
+			styleAccent.Render("Status: ")+styleOk.Render(strings.ToUpper(t.Status)),
+			styleDim.Render(fmt.Sprintf("send %s %s", fmtAmt(t.FromAmount), strings.ToUpper(t.FromTicker))),
+			styleDim.Render(fmt.Sprintf("recv %s %s → %s", fmtAmt(t.ToAmount), strings.ToUpper(t.ToTicker), t.AddressUser)),
+			styleDim.Render("txIn:  "+t.TxIn),
+			styleDim.Render("txOut: "+t.TxOut),
 		)
 	}
-	return out
+	return lipgloss.JoinVertical(lipgloss.Left, rows...)
 }
 
-func (m Model) renderFooter() string {
+func (m Model) renderAbout() string {
 	fp := m.cfg.Fingerprint
 	if fp == "" {
-		fp = "(host key fingerprint not configured)"
+		fp = "(local CLI · no host key)"
 	}
-	line := fmt.Sprintf("kyc.rip · host key %s", fp)
-	return styleFooter.Width(m.width).Render(line)
+	rows := []string{
+		styleAccent.Render("kyc.rip · terminal-only swap"),
+		"",
+		styleDim.Render("Privacy-first crypto swap aggregator,"),
+		styleDim.Render("served over SSH. No JS, no cookies,"),
+		styleDim.Render("no browser fingerprint."),
+		"",
+		styleAccent.Render("Channels"),
+		"  clearnet:  ssh swap.kyc.rip -p 2222",
+		"  tor:       (onion address — pending)",
+		"  i2p:       (b32.i2p — pending)",
+		"",
+		styleAccent.Render("Host key (verify before connecting)"),
+		"  " + fp,
+		"",
+		styleAccent.Render("Source"),
+		"  github.com/xbtoshi/sshwap",
+		"",
+		styleDim.Render("press s · t · ctrl+c"),
+	}
+	return lipgloss.JoinVertical(lipgloss.Left, rows...)
+}
+
+func (m Model) renderHint() string {
+	switch m.tab {
+	case tabSwap:
+		switch m.state {
+		case stPickFrom, stPickTo:
+			return "1-9 pick · type ticker · enter confirm · s swap · t track · a about · ctrl+c quit"
+		case stAmount, stAddress, stMemo:
+			return "type · enter continue · esc back · ctrl+c quit"
+		case stQuoted:
+			return "enter confirm · esc back · t track · ctrl+c quit"
+		case stOrdered:
+			return "esc reset · t track · ctrl+c quit"
+		}
+	case tabTrack:
+		return "type id · enter lookup · esc clear · s swap · a about · ctrl+c quit"
+	case tabAbout:
+		return "esc/enter back · s swap · t track · ctrl+c quit"
+	}
+	return "ctrl+c quit"
+}
+
+// padInput right-pads s to width w (preserving lipgloss-rendered width
+// where possible) so input fields don't reflow when text is empty.
+func padInput(s string, w int) string {
+	cur := lipgloss.Width(s)
+	if cur >= w {
+		return s
+	}
+	return s + strings.Repeat(" ", w-cur)
 }

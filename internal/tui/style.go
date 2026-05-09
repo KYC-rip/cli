@@ -2,34 +2,57 @@ package tui
 
 import "github.com/charmbracelet/lipgloss"
 
+// Card is a fixed inner width — the centered modal that everything renders
+// inside. Picked to match sshwap.com's compact aesthetic and to keep the
+// layout predictable across terminal widths.
+const cardInnerWidth = 64
+
 var (
-	// Two accent colours, monospace, restrained — matches the kyc.rip aesthetic.
-	colAccent  = lipgloss.Color("#00D7AF") // teal — actionable / focus
-	colWarn    = lipgloss.Color("#FFAF00") // amber — secondary / pending
+	// Palette mirrors the sshwap-style monospace look: dim background,
+	// accent green for headings/info, accent yellow for the active button
+	// and highlighted labels.
+	colAccent  = lipgloss.Color("#5FFF87") // green
+	colWarn    = lipgloss.Color("#FFAF00") // amber — buttons, digit shortcuts
 	colMuted   = lipgloss.Color("#7A7A7A")
 	colError   = lipgloss.Color("#FF5F5F")
 	colSuccess = lipgloss.Color("#5FFF87")
 
-	styleTitle = lipgloss.NewStyle().
-			Foreground(colAccent).
+	styleCard = lipgloss.NewStyle().
+			Border(lipgloss.NormalBorder()).
+			BorderForeground(colMuted).
+			Padding(1, 2).
+			Width(cardInnerWidth + 4)
+
+	styleUser = lipgloss.NewStyle().
+			Foreground(colMuted).
 			Bold(true)
 
 	styleTabActive = lipgloss.NewStyle().
-			Foreground(colAccent).
-			Underline(true).
+			Foreground(lipgloss.Color("0")).
+			Background(colWarn).
+			Padding(0, 1).
 			Bold(true)
 
 	styleTabIdle = lipgloss.NewStyle().
-			Foreground(colMuted)
+			Foreground(colMuted).
+			Padding(0, 1)
+
+	styleAccent = lipgloss.NewStyle().
+			Foreground(colAccent).
+			Bold(true)
+
+	styleWarn = lipgloss.NewStyle().
+			Foreground(colWarn).
+			Bold(true)
 
 	styleField = lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(colMuted).
+			Foreground(colMuted).
+			Background(lipgloss.Color("#111111")).
 			Padding(0, 1)
 
 	styleFieldActive = lipgloss.NewStyle().
-				Border(lipgloss.RoundedBorder()).
-				BorderForeground(colAccent).
+				Foreground(lipgloss.Color("#FFFFFF")).
+				Background(lipgloss.Color("#1a1a1a")).
 				Padding(0, 1)
 
 	styleButton = lipgloss.NewStyle().
@@ -45,11 +68,4 @@ var (
 	styleErr = lipgloss.NewStyle().Foreground(colError)
 	styleOk  = lipgloss.NewStyle().Foreground(colSuccess)
 	styleDim = lipgloss.NewStyle().Foreground(colMuted)
-
-	styleFooter = lipgloss.NewStyle().
-			Foreground(colMuted).
-			BorderTop(true).
-			BorderStyle(lipgloss.NormalBorder()).
-			BorderForeground(colMuted).
-			PaddingTop(1)
 )
