@@ -149,10 +149,15 @@ func (s *Server) handle(sess gssh.Session) {
 
 	s.logger.Printf("session start %s term=%s size=%dx%d", host, pty.Term, pty.Window.Width, pty.Window.Height)
 
-	// Build TUI bound to this session
+	// Build TUI bound to this session.
+	// Seed initial Width/Height on the model so View() renders on first
+	// frame (otherwise alt-screen flips with empty content and the user
+	// sees a black void until they press a key).
 	cfg := tui.Config{
-		Client:      s.client,
-		Fingerprint: s.Fingerprint(),
+		Client:        s.client,
+		Fingerprint:   s.Fingerprint(),
+		InitialWidth:  pty.Window.Width,
+		InitialHeight: pty.Window.Height,
 	}
 	prog := tea.NewProgram(
 		tui.New(cfg),
@@ -165,7 +170,6 @@ func (s *Server) handle(sess gssh.Session) {
 			prog.Send(tea.WindowSizeMsg{Width: w.Width, Height: w.Height})
 		}
 	}()
-	prog.Send(tea.WindowSizeMsg{Width: pty.Window.Width, Height: pty.Window.Height})
 
 	if _, err := prog.Run(); err != nil {
 		s.logger.Printf("session %s tui error: %v", host, err)

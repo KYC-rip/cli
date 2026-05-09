@@ -51,6 +51,12 @@ type Config struct {
 	Client      *api.Client
 	Fingerprint string
 	HostBanner  string
+
+	// InitialWidth / InitialHeight let SSH hosts seed dimensions before
+	// the first WindowSizeMsg arrives, so the alt-screen flip on
+	// connection-start renders the form immediately instead of a void.
+	InitialWidth  int
+	InitialHeight int
 }
 
 type Model struct {
@@ -102,6 +108,10 @@ func New(cfg Config) Model {
 		address: mk("destination wallet address", 60),
 		memo:    mk("optional memo / dest tag", 30),
 		trackID: mk("paste trade id", 40),
+	}
+	if cfg.InitialWidth > 0 && cfg.InitialHeight > 0 {
+		m.width = cfg.InitialWidth
+		m.height = cfg.InitialHeight
 	}
 	return m
 }
@@ -506,6 +516,8 @@ func (m Model) renderForm() string {
 		btn = styleButton.Render("[ Get quote ]")
 	}
 	return lipgloss.JoinVertical(lipgloss.Left,
+		styleDim.Render(assetHint(m.width)),
+		"",
 		field("From asset (TICKER or TICKER-NET)", m.from, fldFrom),
 		field("To asset", m.to, fldTo),
 		field("Amount (you send)", m.amount, fldAmount),
