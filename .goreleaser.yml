@@ -90,7 +90,7 @@ brews:
     # Releases without the PAT still publish the binary archives; the
     # tap formula is updated by hand from /tmp/tap-work/. Once the
     # token is configured, `skip_upload: auto` flips to a real push.
-    skip_upload: auto
+    skip_upload: false
     repository:
       owner: kyc-rip
       name: homebrew-tap
