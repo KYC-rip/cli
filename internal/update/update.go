@@ -15,6 +15,7 @@ package update
 
 import (
 	"archive/tar"
+	"archive/zip"
 	"compress/gzip"
 	"context"
 	"crypto/sha256"
@@ -270,8 +271,43 @@ func extractBinary(archivePath, ext string) (string, error) {
 	if ext == ".tar.gz" {
 		return extractTarGz(archivePath, "kyc-cli")
 	}
-	// .zip
-	return "", errors.New(".zip extraction not implemented (Windows users use scoop)")
+	if ext == ".zip" {
+		return extractZip(archivePath, "kyc-cli.exe")
+	}
+	return "", fmt.Errorf("unsupported archive format: %s", ext)
+}
+
+func extractZip(path, wanted string) (string, error) {
+	zr, err := zip.OpenReader(path)
+	if err != nil {
+		return "", err
+	}
+	defer zr.Close()
+	for _, f := range zr.File {
+		if filepath.Base(f.Name) != wanted {
+			continue
+		}
+		rc, err := f.Open()
+		if err != nil {
+			return "", err
+		}
+		out, err := os.CreateTemp("", "kyc-cli-new-*.exe")
+		if err != nil {
+			rc.Close()
+			return "", err
+		}
+		if _, err := io.Copy(out, rc); err != nil {
+			rc.Close()
+			out.Close()
+			os.Remove(out.Name())
+			return "", err
+		}
+		rc.Close()
+		out.Close()
+		_ = os.Chmod(out.Name(), 0o755)
+		return out.Name(), nil
+	}
+	return "", fmt.Errorf("%q not found in archive", wanted)
 }
 
 func extractTarGz(path, wanted string) (string, error) {
