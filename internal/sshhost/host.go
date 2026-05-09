@@ -80,11 +80,9 @@ func New(cfg Config, logger *log.Logger) (*Server, error) {
 		IdleTimeout: cfg.IdleTimeout,
 		MaxTimeout:  60 * time.Minute,
 		Handler:     s.handle,
-		// Reject all auth — we accept anonymous connections; gliderlabs treats
-		// nil PasswordHandler as "deny", so we set explicit no-auth via
-		// PublicKeyHandler/PasswordHandler that always allow.
-		PasswordHandler: func(ctx gssh.Context, pw string) bool { return true },
-		PublicKeyHandler: func(ctx gssh.Context, k gssh.PublicKey) bool { return true },
+		// No PasswordHandler / PublicKeyHandler / KeyboardInteractiveHandler =
+		// gliderlabs sets NoClientAuth=true. Anonymous SSH; the TUI itself
+		// is the entire surface.
 		// Reject everything that isn't a session: no port-forward, no
 		// agent-forward, no exec, no subsystem.
 		LocalPortForwardingCallback:   func(ctx gssh.Context, h string, p uint32) bool { return false },
