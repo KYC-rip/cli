@@ -4,6 +4,24 @@ All notable changes to **kyc-cli** and **sshwap** are documented here.
 The format is loosely [Keep a Changelog](https://keepachangelog.com/);
 versioning follows [SemVer](https://semver.org/).
 
+## [0.1.20] — 2026-05-09
+
+### Changed
+- **Default order/track view no longer renders the QR side-by-side.**
+  Multiple iterations of in-terminal QR rendering (half-block,
+  full-block, BG-color paint, switching libraries to mdp/qrterminal
+  then Baozisoftware/qrcode-terminal-go) all hit terminal/font/
+  bubbletea quirks. Defaulting to a layout that just works.
+- Order/Track now show, in order: order info → deposit address (with
+  OSC-8 wallet hyperlink) → `[ open QR in browser ]` link backed by
+  a `data:image/png;base64,…` URL. Click in any modern terminal
+  (Warp / iTerm2 / Terminal.app / Termius / VS Code / kitty) → the
+  QR opens as an inline image in your default browser. No terminal
+  rendering involved, no font dependency, scans 100%.
+- The `q` (full-size in-terminal QR) and `g` (iTerm2 inline image)
+  paths are still available for users who want to try them in
+  terminals where they work.
+
 ## [0.1.19] — 2026-05-09
 
 ### Added

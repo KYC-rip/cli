@@ -7,6 +7,29 @@ import (
 	"github.com/skip2/go-qrcode"
 )
 
+// qrDataURL builds a `data:image/png;base64,…` URL containing a PNG of
+// the QR for `payload`. Wrapped in an OSC-8 hyperlink, clicking it in
+// any modern terminal opens the QR as an inline image in the user's
+// default browser — no rendering inside the terminal at all, so it
+// works regardless of font/terminal/bubbletea quirks.
+//
+// Trade-off: data URLs grow with PNG size. 256×256 QR for a 34-char
+// Tron address is ~2KB base64. Well within browser URL limits.
+func qrDataURL(payload string) string {
+	if payload == "" {
+		return ""
+	}
+	qr, err := qrcode.New(payload, qrcode.Medium)
+	if err != nil {
+		return ""
+	}
+	pngBytes, err := qr.PNG(256)
+	if err != nil {
+		return ""
+	}
+	return "data:image/png;base64," + base64.StdEncoding.EncodeToString(pngBytes)
+}
+
 // renderQR returns the text-mode QR (Baozisoftware library, ANSI-256 BG
 // paint with 1-module quiet zone). This is what shows by default.
 func renderQR(payload string) string {

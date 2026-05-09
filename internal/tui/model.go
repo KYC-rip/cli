@@ -899,13 +899,8 @@ func (m Model) renderOrdered() string {
 	if m.qrFullScreen {
 		return m.renderQRFullScreen(t.DepositAddress)
 	}
-	var qr string
-	if m.qrImageMode {
-		qr = renderQRImage(t.DepositAddress)
-	} else {
-		qr = renderQR(t.DepositAddress)
-	}
 	depositURI := walletURI(t.FromTicker, t.FromNetwork, t.DepositAddress, t.FromAmount)
+	qrLink := osc8(qrDataURL(t.DepositAddress), styleAccent.Render("[ open QR in browser ]"))
 	left := []string{
 		styleAccent.Render("Order ") + t.ID,
 		styleAccent.Render("Status: ") + styleOk.Render(strings.ToUpper(t.Status)),
@@ -915,6 +910,8 @@ func (m Model) renderOrdered() string {
 		"",
 		styleDim.Render("To deposit address (click to open in wallet)"),
 		osc8(depositURI, styleOk.Render(t.DepositAddress)),
+		"",
+		qrLink,
 	}
 	if t.DepositMemo != "" {
 		left = append(left, "", styleDim.Render("Memo (REQUIRED)"), styleErr.Render(t.DepositMemo))
@@ -924,11 +921,7 @@ func (m Model) renderOrdered() string {
 		"",
 		styleDim.Render("auto-refresh every 5s · q full-size QR · esc reset"),
 	)
-	leftBlock := lipgloss.JoinVertical(lipgloss.Left, left...)
-	if qr == "" {
-		return leftBlock
-	}
-	return lipgloss.JoinHorizontal(lipgloss.Top, leftBlock, "  ", qr)
+	return lipgloss.JoinVertical(lipgloss.Left, left...)
 }
 
 func (m Model) renderTrack() string {
@@ -957,9 +950,12 @@ func (m Model) renderTrack() string {
 				return m.renderQRFullScreen(t.DepositAddress)
 			}
 			depositURI := walletURI(t.FromTicker, t.FromNetwork, t.DepositAddress, t.FromAmount)
+			qrLink := osc8(qrDataURL(t.DepositAddress), styleAccent.Render("[ open QR in browser ]"))
 			rows = append(rows, "",
 				styleDim.Render("To deposit address (click to open in wallet)"),
 				osc8(depositURI, styleOk.Render(t.DepositAddress)),
+				"",
+				qrLink,
 			)
 			if t.DepositMemo != "" {
 				rows = append(rows, "", styleDim.Render("Memo (REQUIRED)"), styleErr.Render(t.DepositMemo))
@@ -973,17 +969,6 @@ func (m Model) renderTrack() string {
 			rows = append(rows, "", styleDim.Render("auto-refresh every 5s · q full-size QR · esc clear"))
 		}
 		leftBlock := lipgloss.JoinVertical(lipgloss.Left, rows...)
-		if showDeposit {
-			var qr string
-			if m.qrImageMode {
-				qr = renderQRImage(t.DepositAddress)
-			} else {
-				qr = renderQR(t.DepositAddress)
-			}
-			if qr != "" {
-				return lipgloss.JoinHorizontal(lipgloss.Top, leftBlock, "  ", qr)
-			}
-		}
 		return leftBlock
 	}
 	return lipgloss.JoinVertical(lipgloss.Left, rows...)
