@@ -102,6 +102,7 @@ type Model struct {
 	swapErr      string
 	pollOn       bool
 	qrFullScreen bool // 'q' in stOrdered or Track expands the QR to fill the terminal.
+	qrImageMode  bool // 'g' toggles iTerm2 inline-image protocol — Warp/iTerm/WezTerm.
 
 	// track tab
 	trackIn    textinput.Model
@@ -420,14 +421,18 @@ func (m Model) updateSwap(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	// 'q' toggles the full-size QR view in any state where a deposit
-	// address is on screen (stOrdered or the Track tab with a non-terminal
-	// trade). Lower priority than esc/typing — only fires for the literal
-	// keystroke "q" with no modifiers.
-	if msg.String() == "q" {
-		if (m.tab == tabSwap && m.state == stOrdered && m.trade != nil && m.trade.DepositAddress != "") ||
-			(m.tab == tabTrack && m.trackTrade != nil && !isTerminal(m.trackTrade.Status) && m.trackTrade.DepositAddress != "") {
+	// 'q' toggles the full-size QR view; 'g' toggles iTerm2 inline-image
+	// rendering. Both fire only when a deposit address is on screen
+	// (stOrdered or Track with a non-terminal trade).
+	hasAddr := (m.tab == tabSwap && m.state == stOrdered && m.trade != nil && m.trade.DepositAddress != "") ||
+		(m.tab == tabTrack && m.trackTrade != nil && !isTerminal(m.trackTrade.Status) && m.trackTrade.DepositAddress != "")
+	if hasAddr {
+		switch msg.String() {
+		case "q":
 			m.qrFullScreen = !m.qrFullScreen
+			return m, nil
+		case "g":
+			m.qrImageMode = !m.qrImageMode
 			return m, nil
 		}
 	}
@@ -690,9 +695,15 @@ func (m Model) View() string {
 			addr = m.trackTrade.DepositAddress
 		}
 		if addr != "" {
-			body := strings.TrimRight(renderQR(addr), "\n") +
+			var qr string
+			if m.qrImageMode {
+				qr = renderQRImage(addr)
+			} else {
+				qr = strings.TrimRight(renderQR(addr), "\n")
+			}
+			body := qr +
 				"\n\n" + styleOk.Render(addr) +
-				"\n" + styleDim.Render("q · esc — back to order")
+				"\n" + styleDim.Render("q exit · g toggle image/text mode")
 			return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, body)
 		}
 	}
@@ -888,7 +899,12 @@ func (m Model) renderOrdered() string {
 	if m.qrFullScreen {
 		return m.renderQRFullScreen(t.DepositAddress)
 	}
-	qr := renderQR(t.DepositAddress)
+	var qr string
+	if m.qrImageMode {
+		qr = renderQRImage(t.DepositAddress)
+	} else {
+		qr = renderQR(t.DepositAddress)
+	}
 	depositURI := walletURI(t.FromTicker, t.FromNetwork, t.DepositAddress, t.FromAmount)
 	left := []string{
 		styleAccent.Render("Order ") + t.ID,
@@ -958,7 +974,13 @@ func (m Model) renderTrack() string {
 		}
 		leftBlock := lipgloss.JoinVertical(lipgloss.Left, rows...)
 		if showDeposit {
-			if qr := renderQR(t.DepositAddress); qr != "" {
+			var qr string
+			if m.qrImageMode {
+				qr = renderQRImage(t.DepositAddress)
+			} else {
+				qr = renderQR(t.DepositAddress)
+			}
+			if qr != "" {
 				return lipgloss.JoinHorizontal(lipgloss.Top, leftBlock, "  ", qr)
 			}
 		}

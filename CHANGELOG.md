@@ -4,6 +4,18 @@ All notable changes to **kyc-cli** and **sshwap** are documented here.
 The format is loosely [Keep a Changelog](https://keepachangelog.com/);
 versioning follows [SemVer](https://semver.org/).
 
+## [0.1.19] — 2026-05-09
+
+### Added
+- **`g` key toggles iTerm2 inline-image protocol** for QR rendering.
+  Press `g` in the order or track view (or while in fullscreen QR
+  mode) to switch from text-mode QR (BG-painted spaces, broken on
+  certain terminal/font combos) to a real raster PNG embedded via
+  OSC 1337. Supported natively by Warp, iTerm2, WezTerm, mintty,
+  Tabby. Terminals that don't recognize the OSC will print the raw
+  base64 as garbage — that's why image mode is opt-in.
+- The fullscreen view's hint now reads `q exit · g toggle image/text mode`.
+
 ## [0.1.18] — 2026-05-09
 
 ### Fixed
