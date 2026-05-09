@@ -4,6 +4,15 @@ All notable changes to **kyc-cli** and **sshwap** are documented here.
 The format is loosely [Keep a Changelog](https://keepachangelog.com/);
 versioning follows [SemVer](https://semver.org/).
 
+## [0.1.24] — 2026-05-09
+
+### Fixed
+- Arrow-key focus nav now works on the **Track tab** too. The handler
+  was buried inside `updateSwap`, so on Track tab the textinput's
+  cursor was eating up/down keys instead. Pulled the deposit-panel
+  key handler out into a shared `handleDepositKeys` that runs before
+  the per-tab dispatch.
+
 ## [0.1.23] — 2026-05-09
 
 ### Added

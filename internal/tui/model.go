@@ -293,6 +293,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 
+		// Deposit-panel keyboard nav fires before tab dispatch so arrows
+		// don't get eaten by updateTrack's textinput forwarding.
+		if newM, cmd, handled := m.handleDepositKeys(msg); handled {
+			return newM, cmd
+		}
+
 		if m.tab == tabSwap {
 			return m.updateSwap(msg)
 		}
@@ -400,6 +406,68 @@ func (m Model) isTypingState() bool {
 	return false
 }
 
+// handleDepositKeys handles the keys that act on the deposit panel —
+// arrow nav, enter-to-copy, q (fullscreen QR), g (image mode), c/C
+// (direct copy shortcuts). Runs before tab-specific dispatch so it
+// works in both stOrdered (Swap tab) and Track tab. Returns
+// handled=true when the keystroke was consumed.
+func (m Model) handleDepositKeys(msg tea.KeyMsg) (Model, tea.Cmd, bool) {
+	var activeAddr string
+	if m.tab == tabSwap && m.state == stOrdered && m.trade != nil {
+		activeAddr = m.trade.DepositAddress
+	} else if m.tab == tabTrack && m.trackTrade != nil && !isTerminal(m.trackTrade.Status) {
+		activeAddr = m.trackTrade.DepositAddress
+	}
+	if activeAddr == "" {
+		return m, nil, false
+	}
+	switch msg.String() {
+	case "q":
+		m.qrFullScreen = !m.qrFullScreen
+		return m, nil, true
+	case "g":
+		m.qrImageMode = !m.qrImageMode
+		return m, nil, true
+	case "up", "k":
+		if m.depositFocus > 0 {
+			m.depositFocus--
+		}
+		return m, nil, true
+	case "down", "j":
+		if m.depositFocus < 1 {
+			m.depositFocus++
+		}
+		return m, nil, true
+	case "enter":
+		var label, payload string
+		if m.depositFocus == 0 {
+			label = "📋 address copied to clipboard"
+			payload = activeAddr
+		} else {
+			label = "📋 QR URL copied to clipboard"
+			payload = qrBrowserURL(activeAddr)
+		}
+		m.copyToast = label
+		return m, tea.Sequence(
+			tea.Println(osc52Clipboard(payload)),
+			tea.Tick(2*time.Second, func(_ time.Time) tea.Msg { return clearToastMsg{} }),
+		), true
+	case "c":
+		m.copyToast = "📋 address copied to clipboard"
+		return m, tea.Sequence(
+			tea.Println(osc52Clipboard(activeAddr)),
+			tea.Tick(2*time.Second, func(_ time.Time) tea.Msg { return clearToastMsg{} }),
+		), true
+	case "C":
+		m.copyToast = "📋 QR URL copied to clipboard"
+		return m, tea.Sequence(
+			tea.Println(osc52Clipboard(qrBrowserURL(activeAddr))),
+			tea.Tick(2*time.Second, func(_ time.Time) tea.Msg { return clearToastMsg{} }),
+		), true
+	}
+	return m, nil, false
+}
+
 func (m Model) updateSwap(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc":
@@ -428,61 +496,6 @@ func (m Model) updateSwap(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	// 'q' toggles the full-size QR view; 'g' toggles iTerm2 inline-image
-	// rendering. Both fire only when a deposit address is on screen
-	// (stOrdered or Track with a non-terminal trade).
-	var activeAddr string
-	if m.tab == tabSwap && m.state == stOrdered && m.trade != nil {
-		activeAddr = m.trade.DepositAddress
-	} else if m.tab == tabTrack && m.trackTrade != nil && !isTerminal(m.trackTrade.Status) {
-		activeAddr = m.trackTrade.DepositAddress
-	}
-	if activeAddr != "" {
-		switch msg.String() {
-		case "q":
-			m.qrFullScreen = !m.qrFullScreen
-			return m, nil
-		case "g":
-			m.qrImageMode = !m.qrImageMode
-			return m, nil
-		case "up", "k":
-			if m.depositFocus > 0 {
-				m.depositFocus--
-			}
-			return m, nil
-		case "down", "j":
-			if m.depositFocus < 1 {
-				m.depositFocus++
-			}
-			return m, nil
-		case "enter":
-			var label, payload string
-			if m.depositFocus == 0 {
-				label = "📋 address copied to clipboard"
-				payload = activeAddr
-			} else {
-				label = "📋 QR URL copied to clipboard"
-				payload = qrBrowserURL(activeAddr)
-			}
-			m.copyToast = label
-			return m, tea.Sequence(
-				tea.Println(osc52Clipboard(payload)),
-				tea.Tick(2*time.Second, func(_ time.Time) tea.Msg { return clearToastMsg{} }),
-			)
-		case "c":
-			m.copyToast = "📋 address copied to clipboard"
-			return m, tea.Sequence(
-				tea.Println(osc52Clipboard(activeAddr)),
-				tea.Tick(2*time.Second, func(_ time.Time) tea.Msg { return clearToastMsg{} }),
-			)
-		case "C":
-			m.copyToast = "📋 QR URL copied to clipboard"
-			return m, tea.Sequence(
-				tea.Println(osc52Clipboard(qrBrowserURL(activeAddr))),
-				tea.Tick(2*time.Second, func(_ time.Time) tea.Msg { return clearToastMsg{} }),
-			)
-		}
-	}
 
 	switch m.state {
 	case stPickFrom, stPickTo:
