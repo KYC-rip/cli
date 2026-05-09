@@ -4,6 +4,21 @@ All notable changes to **kyc-cli** and **sshwap** are documented here.
 The format is loosely [Keep a Changelog](https://keepachangelog.com/);
 versioning follows [SemVer](https://semver.org/).
 
+## [0.1.17] — 2026-05-09
+
+### Added
+- **OSC-8 wallet hyperlink on the deposit address.** Click in the
+  terminal to open the URI in your installed wallet — `bitcoin:…`,
+  `tron:…?amount=N`, `monero:…?tx_amount=N`, `ethereum:…?value=wei`,
+  `litecoin:…`, `dogecoin:…`, `bitcoincash:…`, `zcash:…`, `solana:…`.
+  Skipped for EVM tokens (USDT-ERC20 etc.) — those need EIP-681 with
+  per-chain contract address. Terminals that don't support OSC-8
+  silently strip the escape and show plain text.
+- **Full-size QR view.** Press `q` in the Order or Track view (when
+  a deposit address is shown) to expand the QR to the whole terminal,
+  bypassing the side-by-side layout that was clipping rows in tighter
+  windows. `q` or `esc` returns.
+
 ## [0.1.16] — 2026-05-09
 
 ### Changed

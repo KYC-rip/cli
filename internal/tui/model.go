@@ -95,12 +95,13 @@ type Model struct {
 	amtIn   textinput.Model
 	addrIn  textinput.Model
 	memoIn  textinput.Model
-	quote     *api.Estimate
-	picks     routePicks
-	routePick routeMode // currently-selected bucket; "" before quote arrives
-	trade     *api.Trade
-	swapErr   string
-	pollOn    bool
+	quote        *api.Estimate
+	picks        routePicks
+	routePick    routeMode // currently-selected bucket; "" before quote arrives
+	trade        *api.Trade
+	swapErr      string
+	pollOn       bool
+	qrFullScreen bool // 'q' in stOrdered or Track expands the QR to fill the terminal.
 
 	// track tab
 	trackIn    textinput.Model
@@ -409,10 +410,26 @@ func (m Model) updateSwap(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.state = stAddress
 			m.swapErr = ""
 		case stOrdered:
+			if m.qrFullScreen {
+				m.qrFullScreen = false
+				return m, nil
+			}
 			// reset whole wizard
 			m.resetSwap()
 		}
 		return m, nil
+	}
+
+	// 'q' toggles the full-size QR view in any state where a deposit
+	// address is on screen (stOrdered or the Track tab with a non-terminal
+	// trade). Lower priority than esc/typing — only fires for the literal
+	// keystroke "q" with no modifiers.
+	if msg.String() == "q" {
+		if (m.tab == tabSwap && m.state == stOrdered && m.trade != nil && m.trade.DepositAddress != "") ||
+			(m.tab == tabTrack && m.trackTrade != nil && !isTerminal(m.trackTrade.Status) && m.trackTrade.DepositAddress != "") {
+			m.qrFullScreen = !m.qrFullScreen
+			return m, nil
+		}
 	}
 
 	switch m.state {
@@ -476,6 +493,7 @@ func (m *Model) resetSwap() {
 	m.trade = nil
 	m.swapErr = ""
 	m.pollOn = false
+	m.qrFullScreen = false
 }
 
 // updatePicker handles stPickFrom / stPickTo: digits 1-9 pick from the
@@ -850,7 +868,11 @@ func (m Model) renderOrdered() string {
 	if t == nil {
 		return ""
 	}
+	if m.qrFullScreen {
+		return m.renderQRFullScreen(t.DepositAddress)
+	}
 	qr := renderQR(t.DepositAddress)
+	depositURI := walletURI(t.FromTicker, t.FromNetwork, t.DepositAddress, t.FromAmount)
 	left := []string{
 		styleAccent.Render("Order ") + t.ID,
 		styleAccent.Render("Status: ") + styleOk.Render(strings.ToUpper(t.Status)),
@@ -858,8 +880,8 @@ func (m Model) renderOrdered() string {
 		styleDim.Render("Send"),
 		styleOk.Render(fmt.Sprintf("%s %s", fmtAmt(t.FromAmount), strings.ToUpper(t.FromTicker))),
 		"",
-		styleDim.Render("To deposit address"),
-		styleOk.Render(t.DepositAddress),
+		styleDim.Render("To deposit address (click to open in wallet)"),
+		osc8(depositURI, styleOk.Render(t.DepositAddress)),
 	}
 	if t.DepositMemo != "" {
 		left = append(left, "", styleDim.Render("Memo (REQUIRED)"), styleErr.Render(t.DepositMemo))
@@ -867,7 +889,7 @@ func (m Model) renderOrdered() string {
 	left = append(left, "",
 		styleDim.Render(fmt.Sprintf("Receive ~%s %s → %s", fmtAmt(t.ToAmount), strings.ToUpper(t.ToTicker), t.AddressUser)),
 		"",
-		styleDim.Render("auto-refresh every 5s · esc reset"),
+		styleDim.Render("auto-refresh every 5s · q full-size QR · esc reset"),
 	)
 	leftBlock := lipgloss.JoinVertical(lipgloss.Left, left...)
 	if qr == "" {
@@ -898,9 +920,13 @@ func (m Model) renderTrack() string {
 		// users who Tracked an old order id should see where to send.
 		showDeposit := !isTerminal(t.Status) && t.DepositAddress != ""
 		if showDeposit {
+			if m.qrFullScreen {
+				return m.renderQRFullScreen(t.DepositAddress)
+			}
+			depositURI := walletURI(t.FromTicker, t.FromNetwork, t.DepositAddress, t.FromAmount)
 			rows = append(rows, "",
-				styleDim.Render("To deposit address"),
-				styleOk.Render(t.DepositAddress),
+				styleDim.Render("To deposit address (click to open in wallet)"),
+				osc8(depositURI, styleOk.Render(t.DepositAddress)),
 			)
 			if t.DepositMemo != "" {
 				rows = append(rows, "", styleDim.Render("Memo (REQUIRED)"), styleErr.Render(t.DepositMemo))
@@ -911,7 +937,7 @@ func (m Model) renderTrack() string {
 			styleDim.Render("txOut: "+t.TxOut),
 		)
 		if m.trackPoll {
-			rows = append(rows, "", styleDim.Render("auto-refresh every 5s · esc clear"))
+			rows = append(rows, "", styleDim.Render("auto-refresh every 5s · q full-size QR · esc clear"))
 		}
 		leftBlock := lipgloss.JoinVertical(lipgloss.Left, rows...)
 		if showDeposit {
@@ -922,6 +948,19 @@ func (m Model) renderTrack() string {
 		return leftBlock
 	}
 	return lipgloss.JoinVertical(lipgloss.Left, rows...)
+}
+
+// renderQRFullScreen returns the QR alone, centered, with no other layout
+// content. Triggered by 'q' in stOrdered / Track to give long deposit
+// addresses room to breathe without bumping into the side-by-side layout.
+func (m Model) renderQRFullScreen(addr string) string {
+	qr := renderQR(addr)
+	if qr == "" {
+		return styleDim.Render("(no QR available — copy the address text above)")
+	}
+	hint := styleDim.Render("q · esc — back to order")
+	addrLine := styleOk.Render(addr)
+	return lipgloss.JoinVertical(lipgloss.Center, qr, "", addrLine, "", hint)
 }
 
 func (m Model) renderAbout() string {
