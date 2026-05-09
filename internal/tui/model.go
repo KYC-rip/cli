@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 	zone "github.com/lrstanley/bubblezone"
 
 	"github.com/kyc-rip/cli/internal/api"
@@ -755,16 +756,17 @@ func (m Model) View() string {
 			addr = m.trackTrade.DepositAddress
 		}
 		if addr != "" {
-			var qr string
 			if m.qrImageMode {
-				qr = renderQRImage(addr)
-			} else {
-				qr = strings.TrimRight(renderQR(addr), "\n")
+				body := renderQRImage(addr) +
+					"\n\n" + styleOk.Render(addr) +
+					"\n" + styleDim.Render("q exit · g toggle image/text mode")
+				return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, body)
 			}
-			body := qr +
-				"\n\n" + styleOk.Render(addr) +
-				"\n" + styleDim.Render("q exit · g toggle image/text mode")
-			return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, body)
+			// Text-mode QR: emit straight from renderQRFullScreen with
+			// per-row padding to m.width. Skip lipgloss.Place — Place pads
+			// each line with default-BG spaces and Bubble Tea would still
+			// suffix `[K`, painting bands between rows.
+			return m.renderQRFullScreen(addr)
 		}
 	}
 	header := m.renderHeader()
@@ -1055,18 +1057,46 @@ func caretFor(focus, row int) string {
 	return "  "
 }
 
-// renderQRFullScreen returns the QR alone, with no other layout content.
-// Triggered by 'q' in stOrdered / Track to give long deposit addresses
-// room to breathe without bumping into the side-by-side layout. Built
-// with raw string concatenation rather than lipgloss.JoinVertical —
-// JoinVertical's Center alignment was injecting blank rows between QR
-// rows when applied to a multi-line BG-painted string.
+// renderQRFullScreen returns the QR alone, padded to exactly m.width per
+// row so Bubble Tea's standard renderer skips its `ESC[K` (erase line
+// right) suffix. That suffix was painting the default terminal BG into
+// the line trailer — visible as dark horizontal bands between every QR
+// row. Padding to terminal width makes `ansi.StringWidth(line) >=
+// r.width` so the renderer's gate (line < width → append [K) never
+// triggers. Diagnosed by Codex post-mortem.
 func (m Model) renderQRFullScreen(addr string) string {
 	qr := strings.TrimRight(renderQR(addr), "\n")
 	if qr == "" {
 		return styleDim.Render("(no QR available — copy the address text above)")
 	}
-	return qr + "\n\n" + styleOk.Render(addr) + "\n\n" + styleDim.Render("q · esc — back to order")
+	width := m.width
+	if width <= 0 {
+		width = 80
+	}
+	pad := func(line string) string {
+		w := ansi.StringWidth(line)
+		if w >= width {
+			return line
+		}
+		need := width - w
+		left := need / 2
+		right := need - left
+		return strings.Repeat(" ", left) + line + strings.Repeat(" ", right)
+	}
+	var b strings.Builder
+	for i, line := range strings.Split(qr, "\n") {
+		if i > 0 {
+			b.WriteByte('\n')
+		}
+		b.WriteString(pad(line))
+	}
+	b.WriteString("\n")
+	b.WriteString(pad(""))
+	b.WriteString("\n")
+	b.WriteString(pad(styleOk.Render(addr)))
+	b.WriteString("\n")
+	b.WriteString(pad(styleDim.Render("q · esc — back to order")))
+	return b.String()
 }
 
 func (m Model) renderAbout() string {

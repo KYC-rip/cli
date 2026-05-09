@@ -4,6 +4,23 @@ All notable changes to **kyc-cli** and **sshwap** are documented here.
 The format is loosely [Keep a Changelog](https://keepachangelog.com/);
 versioning follows [SemVer](https://semver.org/).
 
+## [0.1.25] — 2026-05-09
+
+### Fixed
+- **Fullscreen QR (`q`) now renders without horizontal dark bands.**
+  Codex post-mortem identified the root cause: Bubble Tea's standard
+  renderer suffixes every rendered line with `ESC[K` (erase line right)
+  whenever `ansi.StringWidth(line) < r.width`, which paints the line
+  trailer with the *current* BG — and Baozi's per-cell `ESC[0m` reset
+  leaves the BG state at terminal default (dark). That suffix was
+  bleeding into the row's box / line leading on Warp and Termius,
+  producing the alternating module-row / dark-row pattern users kept
+  seeing across 8 release iterations.
+- Fix: pad every QR row to exactly `m.width` visible cells so the `[K`
+  gate is never triggered. Also skip `lipgloss.Place` for the text-mode
+  QR path — `Place`'s default-BG padding spaces have the same effect
+  as the renderer's `[K` and undid the fix.
+
 ## [0.1.24] — 2026-05-09
 
 ### Fixed
