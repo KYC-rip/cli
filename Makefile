@@ -1,7 +1,9 @@
-.PHONY: all build sshwap kyc-cli test vet lint clean run-host run-cli docker
+.PHONY: all build sshwap kyc-cli test vet lint clean run-host run-cli docker release-snapshot release-check
 
 BIN_DIR := ./bin
-GOFLAGS := -trimpath -ldflags="-s -w"
+VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
+COMMIT  := $(shell git rev-parse --short HEAD 2>/dev/null || echo none)
+GOFLAGS := -trimpath -ldflags="-s -w -X main.version=$(VERSION) -X main.commit=$(COMMIT)"
 ENV     := CGO_ENABLED=0
 
 all: build
@@ -34,3 +36,11 @@ run-cli: kyc-cli
 
 docker:
 	docker build -t sshwap:dev .
+
+# Local goreleaser dry-run — produces ./dist/* without publishing.
+release-snapshot:
+	goreleaser release --snapshot --clean
+
+# Validate .goreleaser.yml without building anything.
+release-check:
+	goreleaser check

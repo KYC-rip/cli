@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -10,6 +11,12 @@ import (
 	"time"
 
 	"github.com/xbtoshi/sshwap/internal/sshhost"
+)
+
+// Set by goreleaser via -ldflags="-X main.version=… -X main.commit=…".
+var (
+	version = "dev"
+	commit  = "none"
 )
 
 func main() {
@@ -20,7 +27,12 @@ func main() {
 	maxSessions := flag.Int("max-sessions", 200, "global concurrent session cap")
 	maxPerIP := flag.Int("max-per-ip", 3, "concurrent sessions per source IP")
 	idle := flag.Duration("idle", 90*time.Second, "session idle timeout")
+	showVersion := flag.Bool("version", false, "print version and exit")
 	flag.Parse()
+	if *showVersion {
+		fmt.Printf("sshwap %s (%s)\n", version, commit)
+		return
+	}
 
 	logger := log.New(os.Stderr, "[sshwap] ", log.LstdFlags|log.Lmicroseconds)
 

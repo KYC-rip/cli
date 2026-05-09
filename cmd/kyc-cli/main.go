@@ -12,11 +12,22 @@ import (
 	"github.com/xbtoshi/sshwap/internal/tui"
 )
 
+// Set by goreleaser via -ldflags="-X main.version=… -X main.commit=…".
+var (
+	version = "dev"
+	commit  = "none"
+)
+
 func main() {
 	apiBase := flag.String("api", envOr("KYC_API_BASE", "https://api.kyc.rip"), "kyc.rip API base URL")
 	apiKey := flag.String("api-key", envOr("KYC_API_KEY", ""), "scoped API key (optional)")
 	timeout := flag.Duration("timeout", 12*time.Second, "API timeout per call")
+	showVersion := flag.Bool("version", false, "print version and exit")
 	flag.Parse()
+	if *showVersion {
+		fmt.Printf("kyc-cli %s (%s)\n", version, commit)
+		return
+	}
 
 	cli := api.New(api.WithBase(*apiBase), api.WithAPIKey(*apiKey), api.WithTimeout(*timeout))
 	prog := tea.NewProgram(
