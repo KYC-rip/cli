@@ -169,6 +169,7 @@ func (s *Server) handle(sess gssh.Session) {
 		tea.WithInput(sess),
 		tea.WithOutput(sess),
 		tea.WithAltScreen(),
+		tea.WithMouseCellMotion(),
 	)
 	go func() {
 		for w := range winCh {

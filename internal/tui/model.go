@@ -10,8 +10,21 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	zone "github.com/lrstanley/bubblezone"
 
 	"github.com/xbtoshi/sshwap/internal/api"
+)
+
+// zone IDs — string constants used to mark interactive regions and
+// hit-test mouse clicks against them. Each session has its own
+// zone manager via NewModel() so concurrent SSH sessions don't collide.
+const (
+	zTabSwap   = "tab-swap"
+	zTabTrack  = "tab-track"
+	zTabAbout  = "tab-about"
+	zButton    = "button-primary"
+	zAssetRow  = "asset-row-" // suffixed with index 0..8
+	zAddressOK = "addr-ok"
 )
 
 // --- tabs ---
@@ -65,6 +78,8 @@ type Config struct {
 type Model struct {
 	cfg Config
 
+	zm *zone.Manager // per-session zone manager for mouse hit-testing
+
 	width, height int
 	tab           tab
 
@@ -98,6 +113,7 @@ func New(cfg Config) Model {
 	}
 	m := Model{
 		cfg:     cfg,
+		zm:      zone.New(),
 		tab:     tabSwap,
 		state:   stPickFrom,
 		amtIn:   mk("e.g. 0.01", 24),
@@ -202,6 +218,39 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
+		return m, nil
+
+	case tea.MouseMsg:
+		if msg.Action != tea.MouseActionPress || msg.Button != tea.MouseButtonLeft {
+			return m, nil
+		}
+		// Tab clicks (any state)
+		if m.zm.Get(zTabSwap).InBounds(msg) {
+			m.tab = tabSwap
+			return m, nil
+		}
+		if m.zm.Get(zTabTrack).InBounds(msg) {
+			m.tab = tabTrack
+			m.trackIn.Focus()
+			return m, nil
+		}
+		if m.zm.Get(zTabAbout).InBounds(msg) {
+			m.tab = tabAbout
+			return m, nil
+		}
+		// Button click → synthesize Enter
+		if m.zm.Get(zButton).InBounds(msg) {
+			return m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+		}
+		// Asset row click in pickers
+		if m.tab == tabSwap && (m.state == stPickFrom || m.state == stPickTo) {
+			for i := 0; i < 9 && i < len(topAssets); i++ {
+				if m.zm.Get(zAssetRow + strconv.Itoa(i)).InBounds(msg) {
+					m.assignAsset(topAssets[i])
+					return m, nil
+				}
+			}
+		}
 		return m, nil
 
 	case tea.KeyMsg:
@@ -549,7 +598,9 @@ func (m Model) View() string {
 
 	// Stack: card centered + hint bar at bottom
 	stack := lipgloss.JoinVertical(lipgloss.Center, cardBox, "", styleDim.Render(hint))
-	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, stack)
+	placed := lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, stack)
+	// Scan registers the rendered zone bounds so MouseMsg.InBounds() works.
+	return m.zm.Scan(placed)
 }
 
 func (m Model) renderHeader() string {
@@ -559,9 +610,9 @@ func (m Model) renderHeader() string {
 	}
 	left := styleUser.Render(user + "@swap")
 	tabs := []string{
-		tabRender("Swap", m.tab == tabSwap),
-		tabRender("Track", m.tab == tabTrack),
-		tabRender("About", m.tab == tabAbout),
+		m.zm.Mark(zTabSwap, tabRender("Swap", m.tab == tabSwap)),
+		m.zm.Mark(zTabTrack, tabRender("Track", m.tab == tabTrack)),
+		m.zm.Mark(zTabAbout, tabRender("About", m.tab == tabAbout)),
 	}
 	right := strings.Join(tabs, "  ")
 	// Spacer flex
@@ -573,6 +624,8 @@ func (m Model) renderHeader() string {
 	return lipgloss.JoinHorizontal(lipgloss.Top, left, spacer, right)
 }
 
+// tabRender wraps each tab in its own zone so mouse clicks resolve to it.
+// We don't have access to the zone manager here so the caller wraps after.
 func tabRender(name string, active bool) string {
 	if active {
 		return styleTabActive.Render(name)
@@ -607,20 +660,20 @@ func (m Model) renderSwap() string {
 }
 
 func (m Model) renderPicker(label, scratch string) string {
-	// Numbered list of top assets (1-9), scratch line at bottom
 	var rows []string
-	rows = append(rows, styleAccent.Render(label+":")+" "+styleDim.Render("pick a number 1-9 or type a ticker"))
+	rows = append(rows, styleAccent.Render(label+":")+" "+styleDim.Render("pick a number 1-9, click a row, or type a ticker"))
 	rows = append(rows, "")
 	for i, a := range topAssets {
 		if i >= 9 {
 			break
 		}
-		rows = append(rows, fmt.Sprintf("  %s  %s", styleWarn.Render(strconv.Itoa(i+1)+"."), a))
+		row := fmt.Sprintf("  %s  %s", styleWarn.Render(strconv.Itoa(i+1)+"."), a)
+		rows = append(rows, m.zm.Mark(zAssetRow+strconv.Itoa(i), row))
 	}
 	rows = append(rows, "")
 	rows = append(rows, styleDim.Render("type:")+" "+styleField.Render(padInput(scratch, 28)))
 	rows = append(rows, "")
-	rows = append(rows, styleButton.Render("[ Enter to confirm ]"))
+	rows = append(rows, m.zm.Mark(zButton, styleButton.Render("[ Enter to confirm ]")))
 	return lipgloss.JoinVertical(lipgloss.Left, rows...)
 }
 
@@ -634,7 +687,7 @@ func (m Model) renderAmount() string {
 	if m.swapErr != "" {
 		rows = append(rows, "", styleErr.Render(m.swapErr))
 	}
-	rows = append(rows, "", styleButton.Render("[ Continue ]"))
+	rows = append(rows, "", m.zm.Mark(zButton, styleButton.Render("[ Continue ]")))
 	return lipgloss.JoinVertical(lipgloss.Left, rows...)
 }
 
@@ -648,7 +701,7 @@ func (m Model) renderAddress() string {
 	if m.swapErr != "" {
 		rows = append(rows, "", styleErr.Render(m.swapErr))
 	}
-	rows = append(rows, "", styleButton.Render("[ Continue ]"))
+	rows = append(rows, "", m.zm.Mark(zButton, styleButton.Render("[ Continue ]")))
 	return lipgloss.JoinVertical(lipgloss.Left, rows...)
 }
 
@@ -659,7 +712,7 @@ func (m Model) renderMemo() string {
 		"",
 		styleFieldActive.Render(padInput(m.memoIn.View(), 30)),
 		"",
-		styleButton.Render("[ Get quote ]"),
+		m.zm.Mark(zButton, styleButton.Render("[ Get quote ]")),
 	}
 	return lipgloss.JoinVertical(lipgloss.Left, rows...)
 }
@@ -682,7 +735,7 @@ func (m Model) renderQuoted() string {
 		styleDim.Render(fmt.Sprintf("1 %s = %s %s", from, fmtAmt(q.Rate), to)),
 		styleDim.Render(fmt.Sprintf("via %s · ETA ~%dm · KYC %s", routeName, q.ETA, q.KYCRating)),
 		"",
-		styleButton.Render("[ Confirm — create order ]"),
+		m.zm.Mark(zButton, styleButton.Render("[ Confirm — create order ]")),
 		"",
 		styleDim.Render("enter confirm · esc back"),
 	}

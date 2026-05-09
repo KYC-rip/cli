@@ -2,31 +2,34 @@ package tui
 
 import "github.com/charmbracelet/lipgloss"
 
-// Card is a fixed inner width — the centered modal that everything renders
-// inside. Picked to match sshwap.com's compact aesthetic and to keep the
-// layout predictable across terminal widths.
+// Card inner width — fixed so the layout is stable across terminal sizes.
 const cardInnerWidth = 64
 
 var (
-	// Palette mirrors the sshwap-style monospace look: dim background,
-	// accent green for headings/info, accent yellow for the active button
-	// and highlighted labels.
-	colAccent  = lipgloss.Color("#5FFF87") // green
-	colWarn    = lipgloss.Color("#FFAF00") // amber — buttons, digit shortcuts
-	colMuted   = lipgloss.Color("#7A7A7A")
-	colError   = lipgloss.Color("#FF5F5F")
-	colSuccess = lipgloss.Color("#5FFF87")
+	// Saturated palette for "colorful terminal" pop. Tuned to match the
+	// sshwap.com aesthetic: bright lime green for headings/info,
+	// saturated yellow for active labels and the primary button,
+	// near-black background bands for input fields.
+	colAccent  = lipgloss.Color("#00FF87") // bright lime
+	colWarn    = lipgloss.Color("#FFD700") // gold/yellow
+	colMuted   = lipgloss.Color("#8A8A8A")
+	colError   = lipgloss.Color("#FF6060")
+	colSuccess = lipgloss.Color("#00FF87")
+	colInkBg   = lipgloss.Color("#0a0a0a")
+	colFieldBg = lipgloss.Color("#1a1a1a")
 
 	styleCard = lipgloss.NewStyle().
-			Border(lipgloss.NormalBorder()).
-			BorderForeground(colMuted).
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(colAccent).
 			Padding(1, 2).
 			Width(cardInnerWidth + 4)
 
+	// Username pill on the left of the header — bright accent on dark.
 	styleUser = lipgloss.NewStyle().
-			Foreground(colMuted).
+			Foreground(colAccent).
 			Bold(true)
 
+	// Active tab — yellow background, black text, bold (sshwap-style).
 	styleTabActive = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("0")).
 			Background(colWarn).
@@ -37,24 +40,35 @@ var (
 			Foreground(colMuted).
 			Padding(0, 1)
 
+	// "Sending:", "Receiving:" labels — inverted yellow pill.
 	styleAccent = lipgloss.NewStyle().
-			Foreground(colAccent).
-			Bold(true)
+			Foreground(lipgloss.Color("0")).
+			Background(colWarn).
+			Bold(true).
+			Padding(0, 1)
 
+	// Standalone yellow text (digit shortcuts in the picker, etc.)
 	styleWarn = lipgloss.NewStyle().
 			Foreground(colWarn).
 			Bold(true)
 
+	// Idle input field background.
 	styleField = lipgloss.NewStyle().
 			Foreground(colMuted).
-			Background(lipgloss.Color("#111111")).
+			Background(colFieldBg).
 			Padding(0, 1)
 
+	// Active input — brighter, plus a yellow underline so it's obvious
+	// where the cursor is on muted terminal themes.
 	styleFieldActive = lipgloss.NewStyle().
 				Foreground(lipgloss.Color("#FFFFFF")).
-				Background(lipgloss.Color("#1a1a1a")).
+				Background(colFieldBg).
+				BorderBottom(true).
+				BorderStyle(lipgloss.NormalBorder()).
+				BorderForeground(colWarn).
 				Padding(0, 1)
 
+	// Primary button — yellow on black, padded.
 	styleButton = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("0")).
 			Background(colWarn).
@@ -65,7 +79,7 @@ var (
 			Foreground(colMuted).
 			Padding(0, 2)
 
-	styleErr = lipgloss.NewStyle().Foreground(colError)
-	styleOk  = lipgloss.NewStyle().Foreground(colSuccess)
+	styleErr = lipgloss.NewStyle().Foreground(colError).Bold(true)
+	styleOk  = lipgloss.NewStyle().Foreground(colSuccess).Bold(true)
 	styleDim = lipgloss.NewStyle().Foreground(colMuted)
 )

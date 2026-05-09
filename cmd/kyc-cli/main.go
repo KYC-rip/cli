@@ -22,6 +22,7 @@ func main() {
 	prog := tea.NewProgram(
 		tui.New(tui.Config{Client: cli}),
 		tea.WithAltScreen(),
+		tea.WithMouseCellMotion(),
 	)
 	if _, err := prog.Run(); err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
