@@ -839,12 +839,33 @@ func (m Model) renderTrack() string {
 			styleAccent.Render("Status: ")+styleOk.Render(strings.ToUpper(t.Status)),
 			styleDim.Render(fmt.Sprintf("send %s %s", fmtAmt(t.FromAmount), strings.ToUpper(t.FromTicker))),
 			styleDim.Render(fmt.Sprintf("recv %s %s → %s", fmtAmt(t.ToAmount), strings.ToUpper(t.ToTicker), t.AddressUser)),
+		)
+		// Show deposit address + QR for orders that still need funding —
+		// users who Tracked an old order id should see where to send.
+		showDeposit := !isTerminal(t.Status) && t.DepositAddress != ""
+		if showDeposit {
+			rows = append(rows, "",
+				styleDim.Render("To deposit address"),
+				styleOk.Render(t.DepositAddress),
+			)
+			if t.DepositMemo != "" {
+				rows = append(rows, "", styleDim.Render("Memo (REQUIRED)"), styleErr.Render(t.DepositMemo))
+			}
+		}
+		rows = append(rows, "",
 			styleDim.Render("txIn:  "+t.TxIn),
 			styleDim.Render("txOut: "+t.TxOut),
 		)
 		if m.trackPoll {
 			rows = append(rows, "", styleDim.Render("auto-refresh every 5s · esc clear"))
 		}
+		leftBlock := lipgloss.JoinVertical(lipgloss.Left, rows...)
+		if showDeposit {
+			if qr := renderQR(t.DepositAddress); qr != "" {
+				return lipgloss.JoinHorizontal(lipgloss.Top, leftBlock, "  ", qr)
+			}
+		}
+		return leftBlock
 	}
 	return lipgloss.JoinVertical(lipgloss.Left, rows...)
 }

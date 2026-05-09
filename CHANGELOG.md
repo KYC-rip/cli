@@ -4,6 +4,14 @@ All notable changes to **kyc-cli** and **sshwap** are documented here.
 The format is loosely [Keep a Changelog](https://keepachangelog.com/);
 versioning follows [SemVer](https://semver.org/).
 
+## [0.1.11] — 2026-05-09
+
+### Added
+- Track tab now renders the deposit address + QR (and memo if any)
+  whenever the trade is in a non-terminal status. Users who closed
+  the session before sending funds and re-opened via Track had no way
+  to see where to deposit; that gap is closed.
+
 ## [0.1.10] — 2026-05-09
 
 ### Fixed

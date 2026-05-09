@@ -1,0 +1,11 @@
+[
+  {
+    "wake_id": "20260509-175634-998-613293-1",
+    "agent": "claude",
+    "message": "[wake trigger] You are being woken up by a scheduled `wake` entry. The human is only reachable via Telegram right now — do NOT send status, progress, or the final answer to any terminal pane. Every user-facing output must go in the Telegram reply to this request. If the task requires background work, keep it terse and summarize in the reply.\n\nWork on: kyc-cli + ssh terminal\n\nIn THIS turn you must:\n1. Do real work — make concrete edits, run tool calls, commit/push. Minimum 3 substantive actions on the codebase. No read-only browsing.\n2. Post a concise progress report summarizing what changed this turn (files touched, commits made, tests run).\n3. If the task is NOT done, self-reschedule by running this shell command verbatim:\n   wake add claude --in 30m --work --caller telegram --chat-id 7815518351 \"kyc-cli + ssh terminal\"\n4. If the task IS done, say so plainly and do not reschedule.\n\nDo not reply with a report-only message. Real work must happen before the report.",
+    "fire_at": 1778322394.998393,
+    "created_at": 1778320594.998395,
+    "caller": "telegram",
+    "chat_id": "7815518351"
+  }
+]
