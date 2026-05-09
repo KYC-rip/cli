@@ -1,0 +1,38 @@
+[Unit]
+Description=sshwap — kyc.rip SSH swap TUI
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=sshwap
+Group=sshwap
+StateDirectory=sshwap
+StateDirectoryMode=0700
+Environment=SSHWAP_ADDR=:2222
+Environment=SSHWAP_HOST_KEY=/var/lib/sshwap/host_ed25519
+Environment=SSHWAP_API_BASE=https://api.kyc.rip
+EnvironmentFile=-/etc/sshwap/sshwap.env
+ExecStart=/usr/local/bin/sshwap
+Restart=on-failure
+RestartSec=2
+LimitNOFILE=65536
+
+# Hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6
+RestrictNamespaces=true
+LockPersonality=true
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources
+
+[Install]
+WantedBy=multi-user.target
