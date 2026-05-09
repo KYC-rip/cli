@@ -4,6 +4,18 @@ All notable changes to **kyc-cli** and **sshwap** are documented here.
 The format is loosely [Keep a Changelog](https://keepachangelog.com/);
 versioning follows [SemVer](https://semver.org/).
 
+## [0.1.15] — 2026-05-09
+
+### Changed
+- QR rendering now delegates to `github.com/mdp/qrterminal/v3` — the
+  same library tailscale, 1password-cli, and a pile of others use for
+  terminal QR output. Replaces the hand-rolled bitmap loop and the
+  three iterations on glyph choice (half-block / full-block / BG paint).
+  Default `Generate` emits ANSI 16-color BG-painted full-block cells
+  (`\x1b[40m`/`\x1b[47m`) — the most universally compatible encoding.
+- `github.com/skip2/go-qrcode` removed; replaced by `rsc.io/qr`
+  (qrterminal's underlying encoder).
+
 ## [0.1.14] — 2026-05-09
 
 ### Fixed
