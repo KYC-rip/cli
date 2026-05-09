@@ -1,5 +1,11 @@
 # kyc-rip / cli
 
+[![release](https://img.shields.io/github/v/release/kyc-rip/cli?style=flat-square&color=00d7af)](https://github.com/kyc-rip/cli/releases)
+[![ci](https://img.shields.io/github/actions/workflow/status/kyc-rip/cli/ci.yml?branch=master&style=flat-square&label=ci)](https://github.com/kyc-rip/cli/actions/workflows/ci.yml)
+[![go report](https://goreportcard.com/badge/github.com/kyc-rip/cli?style=flat-square)](https://goreportcard.com/report/github.com/kyc-rip/cli)
+[![license](https://img.shields.io/github/license/kyc-rip/cli?style=flat-square)](LICENSE)
+[![brew](https://img.shields.io/badge/brew-kyc--rip%2Ftap%2Fkyc--cli-FFD700?style=flat-square)](https://github.com/kyc-rip/homebrew-tap)
+
 **A privacy-first crypto swap aggregator, served as a TUI over SSH.**
 
 ```

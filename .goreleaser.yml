@@ -83,6 +83,18 @@ release:
     owner: kyc-rip
     name: cli
 
+scoops:
+  - name: kyc-cli
+    repository:
+      owner: kyc-rip
+      name: scoop-bucket
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    homepage: https://swap.kyc.rip
+    description: "Terminal-only crypto swap (the kyc.rip aggregator as a TUI)"
+    license: MIT
+    skip_upload: auto
+    ids: [kyc-cli]
+
 brews:
   - name: kyc-cli
     # Skip pushing the formula automatically unless a cross-repo PAT
