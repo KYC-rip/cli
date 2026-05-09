@@ -28,6 +28,20 @@ func main() {
 		return
 	}
 
+	flag.Usage = func() {
+		fmt.Fprintln(os.Stderr, "kyc-cli — terminal-only crypto swap (the kyc.rip aggregator as a TUI)")
+		fmt.Fprintln(os.Stderr)
+		fmt.Fprintln(os.Stderr, "Usage:")
+		fmt.Fprintln(os.Stderr, "  kyc-cli [flags]              run the swap TUI")
+		fmt.Fprintln(os.Stderr, "  kyc-cli update [--check]     self-update to the latest release")
+		fmt.Fprintln(os.Stderr, "  kyc-cli --version            print version and exit")
+		fmt.Fprintln(os.Stderr)
+		fmt.Fprintln(os.Stderr, "Flags:")
+		flag.PrintDefaults()
+		fmt.Fprintln(os.Stderr)
+		fmt.Fprintln(os.Stderr, "Source: https://github.com/kyc-rip/cli")
+	}
+
 	apiBase := flag.String("api", envOr("KYC_API_BASE", "https://api.kyc.rip"), "kyc.rip API base URL")
 	apiKey := flag.String("api-key", envOr("KYC_API_KEY", ""), "scoped API key (optional)")
 	timeout := flag.Duration("timeout", 12*time.Second, "API timeout per call")
