@@ -4,6 +4,34 @@ All notable changes to **kyc-cli** and **sshwap** are documented here.
 The format is loosely [Keep a Changelog](https://keepachangelog.com/);
 versioning follows [SemVer](https://semver.org/).
 
+## [0.1.10] — 2026-05-09
+
+### Fixed
+- QR code now renders dark-on-light (black FG on white BG via lipgloss)
+  so phone-camera scanners read it regardless of the user's terminal
+  scheme. Previously rendered white-on-dark which many scanners reject.
+  Adds an extra 2-cell horizontal + 1-row vertical quiet zone on top of
+  skip2's built-in 4-module quiet zone for safety.
+
+### Changed
+- Order `source` field auto-injected into `POST /v2/exchange/create`
+  changed from `sshwap` to `cli` — both `cmd/sshwap` and `cmd/kyc-cli`
+  share the same API client, and `cli` is the right umbrella name.
+- `User-Agent` header bumped from `sshwap/0.1` to `kyc-cli/0.1` to
+  match.
+
+### Verified (no code change)
+- USDT-ERC20 + USDT-TRC20: correctly parsed by `splitTickerNet` →
+  `from_network` / `to_network` populated on `CreateReq`. Address
+  validation handles both EVM-style (ERC20/BEP20/Polygon/etc.) and
+  Tron-style (TRC20). Tickers in numbered top-asset list (#4, #5).
+
+## [0.1.9] — 2026-05-09
+
+### Added
+- `kyc-cli` refuses to launch the TUI when stdin/stdout aren't a tty,
+  printing a useful hint and `--version` as the script-friendly path.
+
 ## [0.1.8] — 2026-05-09
 
 ### Fixed

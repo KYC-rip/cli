@@ -70,8 +70,8 @@ func TestCreateInjectsSource(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Create err: %v", err)
 	}
-	if got.Source != "sshwap" {
-		t.Fatalf("expected source=sshwap (auto-injected), got %q", got.Source)
+	if got.Source != "cli" {
+		t.Fatalf("expected source=cli (auto-injected), got %q", got.Source)
 	}
 	if tr.ID != "abc" || tr.DepositAddress == "" {
 		t.Fatalf("unexpected trade: %+v", tr)

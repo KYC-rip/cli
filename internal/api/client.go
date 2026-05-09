@@ -134,7 +134,7 @@ func (c *Client) do(ctx context.Context, method, path string, body, out any) err
 		req.Header.Set("Content-Type", "application/json")
 	}
 	req.Header.Set("Accept", "application/json")
-	req.Header.Set("User-Agent", "sshwap/0.1 (+https://kyc.rip)")
+	req.Header.Set("User-Agent", "kyc-cli/0.1 (+https://kyc.rip)")
 	if c.apiKey != "" {
 		req.Header.Set("X-API-Key", c.apiKey)
 	}
@@ -181,7 +181,7 @@ func (c *Client) Estimate(ctx context.Context, from, fromNet, to, toNet string, 
 
 func (c *Client) Create(ctx context.Context, req CreateReq) (*Trade, error) {
 	if req.Source == "" {
-		req.Source = "sshwap"
+		req.Source = "cli"
 	}
 	var out Trade
 	if err := c.do(ctx, http.MethodPost, "/v2/exchange/create", req, &out); err != nil {
