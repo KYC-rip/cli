@@ -1,22 +1,26 @@
 package tui
 
 import (
-	"bytes"
-
-	"github.com/mdp/qrterminal/v3"
-	"rsc.io/qr"
+	qrcodeTerminal "github.com/Baozisoftware/qrcode-terminal-go"
 )
 
-// renderQR delegates to mdp/qrterminal — the same library tailscale,
-// 1password-cli, and a pile of others use for terminal QR rendering.
-// Default `Generate` emits full-block "  " cells with explicit ANSI 16
-// background colors (`\x1b[40m` / `\x1b[47m`), which is the most
-// universally compatible encoding.
+// renderQR uses Baozisoftware/qrcode-terminal-go — the library the user
+// specifically reported renders correctly in their terminal stack.
+//
+// Default New() uses:
+//   - front (dark module) = BG ANSI 256 index 0 (black)
+//   - back (light module) = BG ANSI 256 index 7 (theme white / light gray)
+//   - recovery level = Medium
+//
+// The library also strips 3 of skip2's 4-module quiet zone, leaving a
+// 1-module quiet zone — tighter than other terminal QR libraries.
 func renderQR(payload string) string {
 	if payload == "" {
 		return ""
 	}
-	var buf bytes.Buffer
-	qrterminal.Generate(payload, qr.M, &buf)
-	return buf.String()
+	s := qrcodeTerminal.New().Get(payload)
+	if s == nil {
+		return ""
+	}
+	return string(*s)
 }

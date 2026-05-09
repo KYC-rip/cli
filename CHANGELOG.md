@@ -4,6 +4,16 @@ All notable changes to **kyc-cli** and **sshwap** are documented here.
 The format is loosely [Keep a Changelog](https://keepachangelog.com/);
 versioning follows [SemVer](https://semver.org/).
 
+## [0.1.16] — 2026-05-09
+
+### Changed
+- QR rendering swapped to `github.com/Baozisoftware/qrcode-terminal-go`
+  — user reported this library renders correctly in their terminal
+  stack (Warp + zsh + Hack font) where mdp/qrterminal still showed
+  line-gap artifacts. Both libraries use BG-painted spaces, but
+  Baozi's defaults (`BG ANSI 256 index 7` for light, `index 0` for
+  dark) and tighter 1-module quiet zone evidently render cleaner.
+
 ## [0.1.15] — 2026-05-09
 
 ### Changed
