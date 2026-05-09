@@ -103,7 +103,8 @@ type Model struct {
 	pollOn       bool
 	qrFullScreen bool   // 'q' in stOrdered or Track expands the QR to fill the terminal.
 	qrImageMode  bool   // 'g' toggles iTerm2 inline-image protocol — Warp/iTerm/WezTerm.
-	copyToast    string // ephemeral "📋 copied …" feedback after 'c' / 'C'; cleared by clearToastMsg.
+	copyToast    string // ephemeral "📋 copied …" feedback; cleared by clearToastMsg.
+	depositFocus int    // 0 = address, 1 = QR URL. up/down cycles, enter copies.
 
 	// track tab
 	trackIn    textinput.Model
@@ -444,6 +445,30 @@ func (m Model) updateSwap(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		case "g":
 			m.qrImageMode = !m.qrImageMode
 			return m, nil
+		case "up", "k":
+			if m.depositFocus > 0 {
+				m.depositFocus--
+			}
+			return m, nil
+		case "down", "j":
+			if m.depositFocus < 1 {
+				m.depositFocus++
+			}
+			return m, nil
+		case "enter":
+			var label, payload string
+			if m.depositFocus == 0 {
+				label = "📋 address copied to clipboard"
+				payload = activeAddr
+			} else {
+				label = "📋 QR URL copied to clipboard"
+				payload = qrBrowserURL(activeAddr)
+			}
+			m.copyToast = label
+			return m, tea.Sequence(
+				tea.Println(osc52Clipboard(payload)),
+				tea.Tick(2*time.Second, func(_ time.Time) tea.Msg { return clearToastMsg{} }),
+			)
 		case "c":
 			m.copyToast = "📋 address copied to clipboard"
 			return m, tea.Sequence(
@@ -924,6 +949,8 @@ func (m Model) renderOrdered() string {
 	depositURI := walletURI(t.FromTicker, t.FromNetwork, t.DepositAddress, t.FromAmount)
 	qrURL := qrBrowserURL(t.DepositAddress)
 	qrLink := osc8(qrURL, styleAccent.Render("[ open QR in browser ]"))
+	addrLine := osc8(depositURI, styleOk.Render(t.DepositAddress))
+	addrCaret, qrCaret := caretFor(m.depositFocus, 0), caretFor(m.depositFocus, 1)
 	left := []string{
 		styleAccent.Render("Order ") + t.ID,
 		styleAccent.Render("Status: ") + styleOk.Render(strings.ToUpper(t.Status)),
@@ -931,10 +958,10 @@ func (m Model) renderOrdered() string {
 		styleDim.Render("Send"),
 		styleOk.Render(fmt.Sprintf("%s %s", fmtAmt(t.FromAmount), strings.ToUpper(t.FromTicker))),
 		"",
-		styleDim.Render("To deposit address (press c to copy)"),
-		osc8(depositURI, styleOk.Render(t.DepositAddress)),
+		styleDim.Render("To deposit address  ") + styleDim.Render("(↑↓ move · enter copy)"),
+		addrCaret + addrLine,
 		"",
-		qrLink + "  " + styleDim.Render("(C copies URL)"),
+		qrCaret + qrLink,
 	}
 	if m.copyToast != "" {
 		left = append(left, "", styleOk.Render(m.copyToast))
@@ -978,11 +1005,13 @@ func (m Model) renderTrack() string {
 			depositURI := walletURI(t.FromTicker, t.FromNetwork, t.DepositAddress, t.FromAmount)
 			qrURL := qrBrowserURL(t.DepositAddress)
 			qrLink := osc8(qrURL, styleAccent.Render("[ open QR in browser ]"))
+			addrLine := osc8(depositURI, styleOk.Render(t.DepositAddress))
+			addrCaret, qrCaret := caretFor(m.depositFocus, 0), caretFor(m.depositFocus, 1)
 			rows = append(rows, "",
-				styleDim.Render("To deposit address (press c to copy)"),
-				osc8(depositURI, styleOk.Render(t.DepositAddress)),
+				styleDim.Render("To deposit address  ")+styleDim.Render("(↑↓ move · enter copy)"),
+				addrCaret+addrLine,
 				"",
-				qrLink+"  "+styleDim.Render("(C copies URL)"),
+				qrCaret+qrLink,
 			)
 			if m.copyToast != "" {
 				rows = append(rows, "", styleOk.Render(m.copyToast))
@@ -1002,6 +1031,15 @@ func (m Model) renderTrack() string {
 		return leftBlock
 	}
 	return lipgloss.JoinVertical(lipgloss.Left, rows...)
+}
+
+// caretFor returns "▸ " when the focus index matches the row index, "  "
+// otherwise. Used to mark the keyboard-focused row in the deposit panel.
+func caretFor(focus, row int) string {
+	if focus == row {
+		return styleWarn.Render("▸ ")
+	}
+	return "  "
 }
 
 // renderQRFullScreen returns the QR alone, with no other layout content.

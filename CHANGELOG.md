@@ -4,6 +4,16 @@ All notable changes to **kyc-cli** and **sshwap** are documented here.
 The format is loosely [Keep a Changelog](https://keepachangelog.com/);
 versioning follows [SemVer](https://semver.org/).
 
+## [0.1.23] — 2026-05-09
+
+### Added
+- **Arrow-key focus + enter to copy** in the deposit panel. `↑/↓`
+  (or `j/k`) moves focus between the address row and the QR-URL row;
+  a `▸` caret marks the focused item. `enter` copies it to the
+  clipboard via OSC 52 — same mechanism as v0.1.22 but no longer
+  requires memorising `c` / `C`. The shortcut keys still work for
+  power users.
+
 ## [0.1.22] — 2026-05-09
 
 ### Added
