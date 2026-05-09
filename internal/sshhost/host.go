@@ -56,13 +56,16 @@ func (c *Config) Defaults() {
 
 // Server wraps a gliderlabs/ssh server with hard caps.
 type Server struct {
-	cfg     Config
-	client  *api.Client
-	srv     *gssh.Server
-	logger  *log.Logger
-	active  int64
-	perIP   sync.Map // string -> *atomic.Int64
-	hostKey ssh.Signer
+	cfg          Config
+	client       *api.Client
+	srv          *gssh.Server
+	logger       *log.Logger
+	active       int64
+	totalConns   int64
+	rejectedPty  int64
+	rejectedCaps int64
+	perIP        sync.Map // string -> *atomic.Int64
+	hostKey      ssh.Signer
 }
 
 func New(cfg Config, logger *log.Logger) (*Server, error) {
@@ -129,12 +132,14 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 }
 
 func (s *Server) handle(sess gssh.Session) {
+	atomic.AddInt64(&s.totalConns, 1)
 	remote := sess.RemoteAddr()
 	host, _, _ := net.SplitHostPort(remote.String())
 
 	// Caps
 	if cur := atomic.AddInt64(&s.active, 1); cur > int64(s.cfg.MaxSessions) {
 		atomic.AddInt64(&s.active, -1)
+		atomic.AddInt64(&s.rejectedCaps, 1)
 		_, _ = sess.Write([]byte("server busy — try again in a moment\r\n"))
 		_ = sess.Exit(1)
 		return
@@ -142,6 +147,7 @@ func (s *Server) handle(sess gssh.Session) {
 	defer atomic.AddInt64(&s.active, -1)
 
 	if !s.acquireIP(host) {
+		atomic.AddInt64(&s.rejectedCaps, 1)
 		_, _ = sess.Write([]byte("too many connections from your address\r\n"))
 		_ = sess.Exit(1)
 		return
@@ -151,11 +157,13 @@ func (s *Server) handle(sess gssh.Session) {
 	// Reject anything that isn't a PTY session
 	pty, winCh, isPty := sess.Pty()
 	if !isPty {
+		atomic.AddInt64(&s.rejectedPty, 1)
 		_, _ = sess.Write([]byte("interactive PTY required: try `ssh -t swap.kyc.rip`\r\n"))
 		_ = sess.Exit(2)
 		return
 	}
 	if cmd := strings.Join(sess.Command(), " "); cmd != "" {
+		atomic.AddInt64(&s.rejectedPty, 1)
 		_, _ = sess.Write([]byte("exec disabled — interactive only\r\n"))
 		_ = sess.Exit(2)
 		return

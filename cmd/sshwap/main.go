@@ -27,6 +27,7 @@ func main() {
 	maxSessions := flag.Int("max-sessions", 200, "global concurrent session cap")
 	maxPerIP := flag.Int("max-per-ip", 3, "concurrent sessions per source IP")
 	idle := flag.Duration("idle", 90*time.Second, "session idle timeout")
+	healthAddr := flag.String("health", envOr("SSHWAP_HEALTH_ADDR", "127.0.0.1:9090"), "loopback health/metrics listener (empty to disable)")
 	showVersion := flag.Bool("version", false, "print version and exit")
 	flag.Parse()
 	if *showVersion {
@@ -54,6 +55,17 @@ func main() {
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
+
+	// Run the health/metrics endpoint in the background. Failure here
+	// is non-fatal (the SSH listener is what we actually care about).
+	if *healthAddr != "" {
+		go func() {
+			if err := srv.ServeHealth(ctx, *healthAddr); err != nil {
+				logger.Printf("health: %v", err)
+			}
+		}()
+	}
+
 	if err := srv.ListenAndServe(ctx); err != nil {
 		logger.Fatalf("serve: %v", err)
 	}
