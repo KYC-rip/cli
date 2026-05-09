@@ -4,6 +4,23 @@ All notable changes to **kyc-cli** and **sshwap** are documented here.
 The format is loosely [Keep a Changelog](https://keepachangelog.com/);
 versioning follows [SemVer](https://semver.org/).
 
+## [0.1.14] — 2026-05-09
+
+### Fixed
+- QR rendered with **BG-color paint** instead of unicode block glyphs.
+  Each module = 2 spaces with an explicit ANSI 256 BG (black or white),
+  no glyphs at all. v0.1.13's full-block `██` was unreliable on macOS
+  Terminal.app: SF Mono kerns adjacent `█` characters with hairline
+  vertical gaps, breaking the solid-fill illusion. v0.1.10's half-block
+  had a similar issue along the row axis (line-spacing > glyph height).
+- BG-colored spaces side-step both font issues — terminals just paint
+  the cell background, no glyph lookup. Only relies on ANSI 256 BG
+  support, which bubbletea already requires.
+- Also fixes a polarity inversion: `qr.ToString(false)` actually maps
+  *light* modules to `██` (skip2 assumes dark terminals with light FG),
+  so v0.1.13 was rendering an inverted QR even when the visual rendered
+  cleanly.
+
 ## [0.1.13] — 2026-05-09
 
 ### Fixed
