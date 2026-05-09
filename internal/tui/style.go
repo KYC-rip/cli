@@ -25,9 +25,9 @@ var (
 			Width(cardInnerWidth + 4)
 
 	// Username pill on the left of the header — bright accent on dark.
+	// No Bold — see styleWarn note.
 	styleUser = lipgloss.NewStyle().
-			Foreground(colAccent).
-			Bold(true)
+			Foreground(colAccent)
 
 	// Active tab — yellow background, black text, bold (sshwap-style).
 	styleTabActive = lipgloss.NewStyle().
@@ -47,10 +47,11 @@ var (
 			Bold(true).
 			Padding(0, 1)
 
-	// Standalone yellow text (digit shortcuts in the picker, etc.)
+	// Standalone yellow text (digit shortcuts in the picker, etc.).
+	// No Bold — some terminals remap FG+bold into a "bright" palette
+	// that washes the colour out to near-white.
 	styleWarn = lipgloss.NewStyle().
-			Foreground(colWarn).
-			Bold(true)
+			Foreground(colWarn)
 
 	// Idle input field background.
 	styleField = lipgloss.NewStyle().
@@ -79,7 +80,7 @@ var (
 			Foreground(colMuted).
 			Padding(0, 2)
 
-	styleErr = lipgloss.NewStyle().Foreground(colError).Bold(true)
-	styleOk  = lipgloss.NewStyle().Foreground(colSuccess).Bold(true)
+	styleErr = lipgloss.NewStyle().Foreground(colError)
+	styleOk  = lipgloss.NewStyle().Foreground(colSuccess)
 	styleDim = lipgloss.NewStyle().Foreground(colMuted)
 )

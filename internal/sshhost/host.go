@@ -70,11 +70,15 @@ func New(cfg Config, logger *log.Logger) (*Server, error) {
 	if logger == nil {
 		logger = log.New(os.Stderr, "[sshwap] ", log.LstdFlags|log.Lmicroseconds)
 	}
-	// Bubbletea/lipgloss detect color support against the host's stdout
-	// when WithOutput() forwards to an SSH session writer that isn't a tty.
-	// Force true-color globally so every connecting client gets the full
-	// palette; clients with reduced color support down-rank locally.
+	// Force lipgloss's default renderer to TrueColor + dark background.
+	// The default renderer probes os.Stdout, which has no tty in this
+	// process, so termenv falls back to Ascii (no color). All package-
+	// level styles use the default renderer, so we override globally.
+	// Per-session environ via tea.WithEnvironment also flows; this is
+	// the belt and the suspenders.
 	lipgloss.SetColorProfile(termenv.TrueColor)
+	lipgloss.SetHasDarkBackground(true)
+
 	signer, fingerprint, err := loadOrCreateHostKey(cfg.HostKeyPath)
 	if err != nil {
 		return nil, fmt.Errorf("host key: %w", err)
@@ -171,12 +175,17 @@ func (s *Server) handle(sess gssh.Session) {
 		InitialWidth:  pty.Window.Width,
 		InitialHeight: pty.Window.Height,
 	}
+	// Pass the SSH session's env (TERM, COLORTERM, LANG…) to bubbletea
+	// so termenv/lipgloss detect the *client's* color profile per session,
+	// not the host process's stdout (which has no tty).
+	environ := append(sess.Environ(), "TERM="+pty.Term)
 	prog := tea.NewProgram(
 		tui.New(cfg),
 		tea.WithInput(sess),
 		tea.WithOutput(sess),
 		tea.WithAltScreen(),
 		tea.WithMouseCellMotion(),
+		tea.WithEnvironment(environ),
 	)
 	go func() {
 		for w := range winCh {
