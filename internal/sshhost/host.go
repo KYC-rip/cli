@@ -13,7 +13,9 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	gssh "github.com/gliderlabs/ssh"
+	"github.com/muesli/termenv"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/xbtoshi/sshwap/internal/api"
@@ -68,6 +70,11 @@ func New(cfg Config, logger *log.Logger) (*Server, error) {
 	if logger == nil {
 		logger = log.New(os.Stderr, "[sshwap] ", log.LstdFlags|log.Lmicroseconds)
 	}
+	// Bubbletea/lipgloss detect color support against the host's stdout
+	// when WithOutput() forwards to an SSH session writer that isn't a tty.
+	// Force true-color globally so every connecting client gets the full
+	// palette; clients with reduced color support down-rank locally.
+	lipgloss.SetColorProfile(termenv.TrueColor)
 	signer, fingerprint, err := loadOrCreateHostKey(cfg.HostKeyPath)
 	if err != nil {
 		return nil, fmt.Errorf("host key: %w", err)
