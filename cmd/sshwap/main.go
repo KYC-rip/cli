@@ -13,7 +13,7 @@ import (
 )
 
 func main() {
-	addr := flag.String("addr", envOr("SSHWAP_ADDR", ":2222"), "listen address")
+	addr := flag.String("addr", envOr("SSHWAP_ADDR", ":22"), "listen address")
 	hostKey := flag.String("host-key", envOr("SSHWAP_HOST_KEY", ""), "path to ed25519 host key (auto-generated if missing)")
 	apiBase := flag.String("api", envOr("SSHWAP_API_BASE", "https://api.kyc.rip"), "kyc.rip API base URL")
 	apiKey := flag.String("api-key", envOr("SSHWAP_API_KEY", ""), "scoped API key (optional)")
@@ -32,7 +32,9 @@ func main() {
 		MaxSessions: *maxSessions,
 		MaxPerIP:    *maxPerIP,
 		IdleTimeout: *idle,
-		Banner:      "kyc.rip swap — type any username, press Enter\r\n",
+		// Banner intentionally omitted — it appears before the TUI and
+		// looks like a stray pre-auth message in clients. The TUI itself
+		// is the welcome surface.
 	}, logger)
 	if err != nil {
 		logger.Fatalf("init: %v", err)
