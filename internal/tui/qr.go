@@ -2,6 +2,7 @@ package tui
 
 import (
 	"encoding/base64"
+	"net/url"
 
 	qrcodeTerminal "github.com/Baozisoftware/qrcode-terminal-go"
 	"github.com/skip2/go-qrcode"
@@ -9,12 +10,7 @@ import (
 
 // qrDataURL builds a `data:image/png;base64,…` URL containing a PNG of
 // the QR for `payload`. Wrapped in an OSC-8 hyperlink, clicking it in
-// any modern terminal opens the QR as an inline image in the user's
-// default browser — no rendering inside the terminal at all, so it
-// works regardless of font/terminal/bubbletea quirks.
-//
-// Trade-off: data URLs grow with PNG size. 256×256 QR for a 34-char
-// Tron address is ~2KB base64. Well within browser URL limits.
+// terminals that honor OSC-8 opens the QR as an inline image.
 func qrDataURL(payload string) string {
 	if payload == "" {
 		return ""
@@ -28,6 +24,18 @@ func qrDataURL(payload string) string {
 		return ""
 	}
 	return "data:image/png;base64," + base64.StdEncoding.EncodeToString(pngBytes)
+}
+
+// qrBrowserURL returns a short, copy-paste-friendly kyc.rip URL that
+// renders the QR client-side. Intended as the always-works fallback for
+// terminals where OSC-8 hyperlinks don't get clicked through (bubbletea
+// mouse-mode interception, missing terminal support, etc.). Users select
+// + copy + paste into a browser.
+func qrBrowserURL(payload string) string {
+	if payload == "" {
+		return ""
+	}
+	return "https://api.kyc.rip/v2/qr?d=" + url.QueryEscape(payload)
 }
 
 // renderQR returns the text-mode QR (Baozisoftware library, ANSI-256 BG

@@ -4,6 +4,23 @@ All notable changes to **kyc-cli** and **sshwap** are documented here.
 The format is loosely [Keep a Changelog](https://keepachangelog.com/);
 versioning follows [SemVer](https://semver.org/).
 
+## [0.1.21] — 2026-05-09
+
+### Added
+- New `https://api.kyc.rip/v2/qr?d=<payload>` endpoint serves an HTML
+  page that renders the QR client-side via `qrcode-min.js` from
+  jsdelivr. No payload is logged or persisted by the worker — it's
+  reflected straight into the page for the browser to render.
+- CLI now prints the QR URL as **plain text below the OSC-8 link**:
+  `or copy: https://api.kyc.rip/v2/qr?d=<urlencoded>`. Always works,
+  no terminal click support required — select + copy + paste into a
+  browser.
+
+### Changed
+- The "click to open in wallet" hint now reads "⌘+click" so users
+  know the modifier is required when the app is consuming mouse
+  clicks via bubbletea.
+
 ## [0.1.20] — 2026-05-09
 
 ### Changed

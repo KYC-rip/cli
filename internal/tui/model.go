@@ -900,7 +900,8 @@ func (m Model) renderOrdered() string {
 		return m.renderQRFullScreen(t.DepositAddress)
 	}
 	depositURI := walletURI(t.FromTicker, t.FromNetwork, t.DepositAddress, t.FromAmount)
-	qrLink := osc8(qrDataURL(t.DepositAddress), styleAccent.Render("[ open QR in browser ]"))
+	qrURL := qrBrowserURL(t.DepositAddress)
+	qrLink := osc8(qrURL, styleAccent.Render("[ open QR in browser ]"))
 	left := []string{
 		styleAccent.Render("Order ") + t.ID,
 		styleAccent.Render("Status: ") + styleOk.Render(strings.ToUpper(t.Status)),
@@ -908,10 +909,11 @@ func (m Model) renderOrdered() string {
 		styleDim.Render("Send"),
 		styleOk.Render(fmt.Sprintf("%s %s", fmtAmt(t.FromAmount), strings.ToUpper(t.FromTicker))),
 		"",
-		styleDim.Render("To deposit address (click to open in wallet)"),
+		styleDim.Render("To deposit address (⌘+click to open in wallet)"),
 		osc8(depositURI, styleOk.Render(t.DepositAddress)),
 		"",
 		qrLink,
+		styleDim.Render("or copy: ") + styleOk.Render(qrURL),
 	}
 	if t.DepositMemo != "" {
 		left = append(left, "", styleDim.Render("Memo (REQUIRED)"), styleErr.Render(t.DepositMemo))
@@ -950,12 +952,14 @@ func (m Model) renderTrack() string {
 				return m.renderQRFullScreen(t.DepositAddress)
 			}
 			depositURI := walletURI(t.FromTicker, t.FromNetwork, t.DepositAddress, t.FromAmount)
-			qrLink := osc8(qrDataURL(t.DepositAddress), styleAccent.Render("[ open QR in browser ]"))
+			qrURL := qrBrowserURL(t.DepositAddress)
+			qrLink := osc8(qrURL, styleAccent.Render("[ open QR in browser ]"))
 			rows = append(rows, "",
-				styleDim.Render("To deposit address (click to open in wallet)"),
+				styleDim.Render("To deposit address (⌘+click to open in wallet)"),
 				osc8(depositURI, styleOk.Render(t.DepositAddress)),
 				"",
 				qrLink,
+				styleDim.Render("or copy: ")+styleOk.Render(qrURL),
 			)
 			if t.DepositMemo != "" {
 				rows = append(rows, "", styleDim.Render("Memo (REQUIRED)"), styleErr.Render(t.DepositMemo))
