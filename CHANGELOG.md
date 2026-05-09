@@ -4,6 +4,20 @@ All notable changes to **kyc-cli** and **sshwap** are documented here.
 The format is loosely [Keep a Changelog](https://keepachangelog.com/);
 versioning follows [SemVer](https://semver.org/).
 
+## [0.1.12] — 2026-05-09
+
+### Added
+- Quote screen now shows the same four buckets as the Telegram bot:
+  🌟 Suggested · 🛡 Safe · $ Rate · ⚡ Speed. Each card lists provider,
+  ~amount_to, ETA, and KYC rating. `1-4` number-pick, `tab`/arrow to
+  cycle, `enter` to confirm. Picked route is what `POST /create` uses.
+- `pickRoutesByMode` ported from `bot/src/telegram/kyc.ts:827` so the
+  CLI / SSH and Telegram channels surface the same recommendations
+  (dedupe-by-provider, greedy slot-fill so no provider lands in two
+  buckets, V2's `routes[0]` is always Suggested).
+- `internal/tui/routes_test.go` covers the four-distinct-picks happy
+  path, dedupe, no-duplicate-across-buckets, and empty input.
+
 ## [0.1.11] — 2026-05-09
 
 ### Added

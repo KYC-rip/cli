@@ -95,10 +95,12 @@ type Model struct {
 	amtIn   textinput.Model
 	addrIn  textinput.Model
 	memoIn  textinput.Model
-	quote   *api.Estimate
-	trade   *api.Trade
-	swapErr string
-	pollOn  bool
+	quote     *api.Estimate
+	picks     routePicks
+	routePick routeMode // currently-selected bucket; "" before quote arrives
+	trade     *api.Trade
+	swapErr   string
+	pollOn    bool
 
 	// track tab
 	trackIn    textinput.Model
@@ -179,7 +181,11 @@ func (m Model) cmdCreate() tea.Cmd {
 	provider := m.quote.Provider
 	engine := m.quote.Engine
 	var hq any
-	if len(m.quote.Routes) > 0 {
+	if r := m.picks.get(m.routePick); r != nil {
+		provider = r.Provider
+		engine = r.Engine
+		hq = r.HoudiniQuote
+	} else if len(m.quote.Routes) > 0 {
 		provider = m.quote.Routes[0].Provider
 		engine = m.quote.Routes[0].Engine
 		hq = m.quote.Routes[0].HoudiniQuote
@@ -301,6 +307,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.quote = msg.q
+		m.picks = pickRoutesByMode(msg.q.Routes)
+		m.routePick = ""
+		for _, rm := range m.picks.modes() {
+			m.routePick = rm
+			break
+		}
 		m.state = stQuoted
 		return m, nil
 
@@ -413,7 +425,25 @@ func (m Model) updateSwap(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case stMemo:
 		return m.updateMemo(msg)
 	case stQuoted:
-		if msg.String() == "enter" {
+		key := msg.String()
+		// Bucket selection: 1-4 number-pick, tab/down cycle forward, shift+tab/up cycle back.
+		if len(key) == 1 && key >= "1" && key <= "9" {
+			modes := m.picks.modes()
+			idx := int(key[0]-'0') - 1
+			if idx >= 0 && idx < len(modes) {
+				m.routePick = modes[idx]
+			}
+			return m, nil
+		}
+		if key == "tab" || key == "down" || key == "right" {
+			m.routePick = cycleMode(m.picks.modes(), m.routePick, +1)
+			return m, nil
+		}
+		if key == "shift+tab" || key == "up" || key == "left" {
+			m.routePick = cycleMode(m.picks.modes(), m.routePick, -1)
+			return m, nil
+		}
+		if key == "enter" {
 			if m.cfg.DryRun {
 				// Stop here. Show a friendly explainer in the error
 				// channel (no actual error — just preempts the call).
@@ -441,6 +471,8 @@ func (m *Model) resetSwap() {
 	m.addrIn.SetValue("")
 	m.memoIn.SetValue("")
 	m.quote = nil
+	m.picks = routePicks{}
+	m.routePick = ""
 	m.trade = nil
 	m.swapErr = ""
 	m.pollOn = false
@@ -773,22 +805,44 @@ func (m Model) renderQuoted() string {
 	}
 	from, _ := splitTickerNet(m.from)
 	to, _ := splitTickerNet(m.to)
-	routeName := q.Provider
-	if len(q.Routes) > 0 {
-		routeName = q.Routes[0].Provider
-	}
+
 	rows := []string{
 		styleAccent.Render("Sending:   ") + fmtAmt(q.AmountFrom) + " " + from,
-		styleAccent.Render("Receiving: ") + styleOk.Render("~"+fmtAmt(q.AmountTo)+" "+to),
+		styleAccent.Render("Pick a route — same buckets as the bot"),
 		"",
+	}
+
+	modes := m.picks.modes()
+	for i, mode := range modes {
+		r := m.picks.get(mode)
+		num := fmt.Sprintf("%d.", i+1)
+		head := fmt.Sprintf("%s  %s %s", num, mode.Glyph(), mode.Label())
+		body := fmt.Sprintf("   %s · ~%s %s · ETA %dm · KYC %s",
+			r.Provider, fmtAmt(r.AmountTo), to, r.ETA, ratingOrDash(r.KYC))
+		card := lipgloss.JoinVertical(lipgloss.Left, head, body)
+		if mode == m.routePick {
+			card = styleRouteCardActive.Render(card)
+		} else {
+			card = styleRouteCard.Render(card)
+		}
+		rows = append(rows, card)
+	}
+
+	rows = append(rows, "",
 		styleDim.Render(fmt.Sprintf("1 %s = %s %s", from, fmtAmt(q.Rate), to)),
-		styleDim.Render(fmt.Sprintf("via %s · ETA ~%dm · KYC %s", routeName, q.ETA, q.KYCRating)),
 		"",
 		m.zm.Mark(zButton, styleButton.Render("[ Confirm — create order ]")),
 		"",
-		styleDim.Render("enter confirm · esc back"),
-	}
+		styleDim.Render("1-4 pick · tab cycle · enter confirm · esc back"),
+	)
 	return lipgloss.JoinVertical(lipgloss.Left, rows...)
+}
+
+func ratingOrDash(s string) string {
+	if s == "" {
+		return "—"
+	}
+	return strings.ToUpper(s)
 }
 
 func (m Model) renderOrdered() string {

@@ -83,4 +83,17 @@ var (
 	styleErr = lipgloss.NewStyle().Foreground(colError)
 	styleOk  = lipgloss.NewStyle().Foreground(colSuccess)
 	styleDim = lipgloss.NewStyle().Foreground(colMuted)
+
+	// Route-bucket cards: idle = dim border, active = yellow border.
+	styleRouteCard = lipgloss.NewStyle().
+			Border(lipgloss.NormalBorder()).
+			BorderForeground(colMuted).
+			Padding(0, 1).
+			MarginBottom(0)
+
+	styleRouteCardActive = lipgloss.NewStyle().
+				Border(lipgloss.NormalBorder()).
+				BorderForeground(colWarn).
+				Padding(0, 1).
+				MarginBottom(0)
 )
