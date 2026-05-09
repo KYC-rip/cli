@@ -101,8 +101,9 @@ type Model struct {
 	trade        *api.Trade
 	swapErr      string
 	pollOn       bool
-	qrFullScreen bool // 'q' in stOrdered or Track expands the QR to fill the terminal.
-	qrImageMode  bool // 'g' toggles iTerm2 inline-image protocol — Warp/iTerm/WezTerm.
+	qrFullScreen bool   // 'q' in stOrdered or Track expands the QR to fill the terminal.
+	qrImageMode  bool   // 'g' toggles iTerm2 inline-image protocol — Warp/iTerm/WezTerm.
+	copyToast    string // ephemeral "📋 copied …" feedback after 'c' / 'C'; cleared by clearToastMsg.
 
 	// track tab
 	trackIn    textinput.Model
@@ -156,6 +157,7 @@ type statusDoneMsg struct {
 	isTrack bool
 }
 type tickMsg time.Time
+type clearToastMsg struct{}
 
 // --- commands ---
 
@@ -351,6 +353,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
+	case clearToastMsg:
+		m.copyToast = ""
+		return m, nil
+
 	case tickMsg:
 		var cmds []tea.Cmd
 		if m.pollOn && m.trade != nil && m.trade.ID != "" && !isTerminal(m.trade.Status) {
@@ -424,9 +430,13 @@ func (m Model) updateSwap(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	// 'q' toggles the full-size QR view; 'g' toggles iTerm2 inline-image
 	// rendering. Both fire only when a deposit address is on screen
 	// (stOrdered or Track with a non-terminal trade).
-	hasAddr := (m.tab == tabSwap && m.state == stOrdered && m.trade != nil && m.trade.DepositAddress != "") ||
-		(m.tab == tabTrack && m.trackTrade != nil && !isTerminal(m.trackTrade.Status) && m.trackTrade.DepositAddress != "")
-	if hasAddr {
+	var activeAddr string
+	if m.tab == tabSwap && m.state == stOrdered && m.trade != nil {
+		activeAddr = m.trade.DepositAddress
+	} else if m.tab == tabTrack && m.trackTrade != nil && !isTerminal(m.trackTrade.Status) {
+		activeAddr = m.trackTrade.DepositAddress
+	}
+	if activeAddr != "" {
 		switch msg.String() {
 		case "q":
 			m.qrFullScreen = !m.qrFullScreen
@@ -434,6 +444,18 @@ func (m Model) updateSwap(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		case "g":
 			m.qrImageMode = !m.qrImageMode
 			return m, nil
+		case "c":
+			m.copyToast = "📋 address copied to clipboard"
+			return m, tea.Sequence(
+				tea.Println(osc52Clipboard(activeAddr)),
+				tea.Tick(2*time.Second, func(_ time.Time) tea.Msg { return clearToastMsg{} }),
+			)
+		case "C":
+			m.copyToast = "📋 QR URL copied to clipboard"
+			return m, tea.Sequence(
+				tea.Println(osc52Clipboard(qrBrowserURL(activeAddr))),
+				tea.Tick(2*time.Second, func(_ time.Time) tea.Msg { return clearToastMsg{} }),
+			)
 		}
 	}
 
@@ -909,11 +931,13 @@ func (m Model) renderOrdered() string {
 		styleDim.Render("Send"),
 		styleOk.Render(fmt.Sprintf("%s %s", fmtAmt(t.FromAmount), strings.ToUpper(t.FromTicker))),
 		"",
-		styleDim.Render("To deposit address (⌘+click to open in wallet)"),
+		styleDim.Render("To deposit address (press c to copy)"),
 		osc8(depositURI, styleOk.Render(t.DepositAddress)),
 		"",
-		qrLink,
-		styleDim.Render("or copy: ") + styleOk.Render(qrURL),
+		qrLink + "  " + styleDim.Render("(C copies URL)"),
+	}
+	if m.copyToast != "" {
+		left = append(left, "", styleOk.Render(m.copyToast))
 	}
 	if t.DepositMemo != "" {
 		left = append(left, "", styleDim.Render("Memo (REQUIRED)"), styleErr.Render(t.DepositMemo))
@@ -955,12 +979,14 @@ func (m Model) renderTrack() string {
 			qrURL := qrBrowserURL(t.DepositAddress)
 			qrLink := osc8(qrURL, styleAccent.Render("[ open QR in browser ]"))
 			rows = append(rows, "",
-				styleDim.Render("To deposit address (⌘+click to open in wallet)"),
+				styleDim.Render("To deposit address (press c to copy)"),
 				osc8(depositURI, styleOk.Render(t.DepositAddress)),
 				"",
-				qrLink,
-				styleDim.Render("or copy: ")+styleOk.Render(qrURL),
+				qrLink+"  "+styleDim.Render("(C copies URL)"),
 			)
+			if m.copyToast != "" {
+				rows = append(rows, "", styleOk.Render(m.copyToast))
+			}
 			if t.DepositMemo != "" {
 				rows = append(rows, "", styleDim.Render("Memo (REQUIRED)"), styleErr.Render(t.DepositMemo))
 			}

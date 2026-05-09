@@ -4,6 +4,19 @@ All notable changes to **kyc-cli** and **sshwap** are documented here.
 The format is loosely [Keep a Changelog](https://keepachangelog.com/);
 versioning follows [SemVer](https://semver.org/).
 
+## [0.1.22] — 2026-05-09
+
+### Added
+- **`c` copies the deposit address to the system clipboard** via OSC 52
+  escape — the terminal-side clipboard write travels in-band and works
+  across SSH. Supported by Warp, iTerm2, Alacritty, kitty, mintty,
+  WezTerm, Tabby, and most modern terminals.
+- **`C` (shift+c) copies the QR URL** (`https://api.kyc.rip/v2/qr?d=…`)
+  the same way — paste it into a browser to see the QR.
+- "📋 copied" toast appears for 2 seconds after either keystroke.
+- Address-line hint updated to `(press c to copy)` so the action is
+  discoverable.
+
 ## [0.1.21] — 2026-05-09
 
 ### Added

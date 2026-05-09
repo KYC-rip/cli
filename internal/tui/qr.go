@@ -26,6 +26,18 @@ func qrDataURL(payload string) string {
 	return "data:image/png;base64," + base64.StdEncoding.EncodeToString(pngBytes)
 }
 
+// osc52Clipboard returns the OSC 52 escape sequence that asks the user's
+// terminal to write `text` into the system clipboard. Supported by
+// Warp, iTerm2, Alacritty, kitty, mintty, WezTerm, Tabby, and others.
+// Works across SSH because the escape travels in-band — the terminal
+// emulator on the user's machine processes it.
+func osc52Clipboard(text string) string {
+	if text == "" {
+		return ""
+	}
+	return "\x1b]52;c;" + base64.StdEncoding.EncodeToString([]byte(text)) + "\x07"
+}
+
 // qrBrowserURL returns a short, copy-paste-friendly kyc.rip URL that
 // renders the QR client-side. Intended as the always-works fallback for
 // terminals where OSC-8 hyperlinks don't get clicked through (bubbletea
