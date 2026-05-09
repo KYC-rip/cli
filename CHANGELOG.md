@@ -4,6 +4,13 @@ All notable changes to **kyc-cli** and **sshwap** are documented here.
 The format is loosely [Keep a Changelog](https://keepachangelog.com/);
 versioning follows [SemVer](https://semver.org/).
 
+## [0.1.27] — 2026-05-09
+
+### Fixed
+- OSC 52 clipboard escape now uses the ST terminator (`ESC \`) instead
+  of BEL (`\a`). Both are spec, but some terminals + tmux passthroughs
+  only honor ST. Warp specifically appears to be one of them.
+
 ## [0.1.26] — 2026-05-09
 
 ### Fixed

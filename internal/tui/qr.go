@@ -31,11 +31,14 @@ func qrDataURL(payload string) string {
 // Warp, iTerm2, Alacritty, kitty, mintty, WezTerm, Tabby, and others.
 // Works across SSH because the escape travels in-band — the terminal
 // emulator on the user's machine processes it.
+//
+// Terminator: ESC \ (ST) rather than BEL — the spec lists both but some
+// terminals (notably tmux passthrough and a few wrappers) only accept ST.
 func osc52Clipboard(text string) string {
 	if text == "" {
 		return ""
 	}
-	return "\x1b]52;c;" + base64.StdEncoding.EncodeToString([]byte(text)) + "\x07"
+	return "\x1b]52;c;" + base64.StdEncoding.EncodeToString([]byte(text)) + "\x1b\\"
 }
 
 // qrBrowserURL returns a short, copy-paste-friendly kyc.rip URL that
