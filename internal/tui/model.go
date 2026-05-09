@@ -100,6 +100,7 @@ type Model struct {
 	trackTrade *api.Trade
 	trackErr   string
 	trackBusy  bool
+	trackPoll  bool // auto-refresh until terminal status reached
 }
 
 func New(cfg Config) Model {
@@ -314,8 +315,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.trackBusy = false
 			if msg.err != nil {
 				m.trackErr = msg.err.Error()
+				m.trackPoll = false
 			} else {
 				m.trackTrade = msg.t
+				// Keep polling until the trade reaches a terminal state.
+				if msg.t != nil && !isTerminal(msg.t.Status) {
+					m.trackPoll = true
+				} else {
+					m.trackPoll = false
+				}
 			}
 			return m, nil
 		}
@@ -325,8 +333,21 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tickMsg:
+		var cmds []tea.Cmd
 		if m.pollOn && m.trade != nil && m.trade.ID != "" && !isTerminal(m.trade.Status) {
-			return m, tea.Batch(m.cmdStatus(m.trade.ID, false), tickCmd())
+			cmds = append(cmds, m.cmdStatus(m.trade.ID, false))
+		}
+		if m.trackPoll && m.trackTrade != nil && m.trackTrade.ID != "" && !isTerminal(m.trackTrade.Status) {
+			cmds = append(cmds, m.cmdStatus(m.trackTrade.ID, true))
+		}
+		if len(cmds) > 0 {
+			cmds = append(cmds, tickCmd())
+			return m, tea.Batch(cmds...)
+		}
+		// Restart the tick if either pollers are still on but waiting for
+		// a fresh status; otherwise the tick chain dies and never resumes.
+		if m.pollOn || m.trackPoll {
+			return m, tickCmd()
 		}
 		return m, nil
 	}
@@ -528,10 +549,13 @@ func (m Model) updateTrack(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.trackBusy = true
 		m.trackErr = ""
 		m.trackTrade = nil
-		return m, m.cmdStatus(id, true)
+		// Kick the first lookup, plus a tick so the auto-poll loop picks
+		// up once we get the trade back.
+		return m, tea.Batch(m.cmdStatus(id, true), tickCmd())
 	case "esc":
 		m.trackTrade = nil
 		m.trackErr = ""
+		m.trackPoll = false
 		m.trackIn.SetValue("")
 		return m, nil
 	}
@@ -802,6 +826,9 @@ func (m Model) renderTrack() string {
 			styleDim.Render("txIn:  "+t.TxIn),
 			styleDim.Render("txOut: "+t.TxOut),
 		)
+		if m.trackPoll {
+			rows = append(rows, "", styleDim.Render("auto-refresh every 5s · esc clear"))
+		}
 	}
 	return lipgloss.JoinVertical(lipgloss.Left, rows...)
 }
