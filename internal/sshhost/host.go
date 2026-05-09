@@ -70,13 +70,16 @@ func New(cfg Config, logger *log.Logger) (*Server, error) {
 	if logger == nil {
 		logger = log.New(os.Stderr, "[sshwap] ", log.LstdFlags|log.Lmicroseconds)
 	}
-	// Force lipgloss's default renderer to TrueColor + dark background.
-	// The default renderer probes os.Stdout, which has no tty in this
-	// process, so termenv falls back to Ascii (no color). All package-
-	// level styles use the default renderer, so we override globally.
-	// Per-session environ via tea.WithEnvironment also flows; this is
-	// the belt and the suspenders.
-	lipgloss.SetColorProfile(termenv.TrueColor)
+	// Force lipgloss's default renderer to ANSI 256 + dark background.
+	// The default renderer probes os.Stdout (no tty in this process)
+	// and falls back to Ascii. We override globally because all package-
+	// level styles use the default renderer.
+	//
+	// ANSI256 (not TrueColor): macOS Terminal.app — by far the most
+	// common ssh client on Mac — silently strips 24-bit ANSI sequences,
+	// so palette-only colors render best across every terminal we care
+	// about. iTerm2/Alacritty/Kitty downgrade gracefully from 256.
+	lipgloss.SetColorProfile(termenv.ANSI256)
 	lipgloss.SetHasDarkBackground(true)
 
 	signer, fingerprint, err := loadOrCreateHostKey(cfg.HostKeyPath)
