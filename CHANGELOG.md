@@ -4,6 +4,17 @@ All notable changes to **kyc-cli** and **sshwap** are documented here.
 The format is loosely [Keep a Changelog](https://keepachangelog.com/);
 versioning follows [SemVer](https://semver.org/).
 
+## [0.1.13] — 2026-05-09
+
+### Fixed
+- QR now uses full-block `██` per filled module instead of half-blocks
+  (`▀`/`▄`). Half-block rendering was reported broken on macOS Terminal
+  where line-spacing exceeds glyph height — adjacent rows floated with
+  visible vertical gaps and modules collapsed into horizontal stripes.
+  Full-block is wider but renders reliably across every terminal we've
+  tested. skip2's built-in 4-module quiet zone is sufficient now;
+  removed the redundant lipgloss padding.
+
 ## [0.1.12] — 2026-05-09
 
 ### Added
