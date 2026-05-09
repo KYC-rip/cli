@@ -39,16 +39,27 @@ builds:
     goarch: [amd64, arm64]
 
 archives:
-  - id: default
+  # One archive per binary/id so windows (no sshwap) and unix (both) line up.
+  - id: kyc-cli
+    ids: [kyc-cli]
     formats: [tar.gz]
-    name_template: "{{ .Binary }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    name_template: "kyc-cli_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     format_overrides:
       - goos: windows
         formats: [zip]
     files:
       - LICENSE*
-      - README*
-      - deploy/*
+      - CHANGELOG*
+
+  - id: sshwap
+    ids: [sshwap]
+    formats: [tar.gz]
+    name_template: "sshwap_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - LICENSE*
+      - CHANGELOG*
+      - deploy/sshwap.service
+      - deploy/install.sh
 
 checksum:
   name_template: "checksums.txt"
@@ -71,3 +82,18 @@ release:
   github:
     owner: xbtoshi
     name: sshwap
+
+brews:
+  - name: kyc-cli
+    repository:
+      owner: xbtoshi
+      name: homebrew-tap
+    homepage: https://swap.kyc.rip
+    description: "Terminal-only crypto swap (the kyc.rip aggregator as a TUI)"
+    license: MIT
+    install: |
+      bin.install "kyc-cli"
+    test: |
+      system "#{bin}/kyc-cli", "--version"
+    ids:
+      - kyc-cli
