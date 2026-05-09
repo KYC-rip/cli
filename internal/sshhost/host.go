@@ -167,6 +167,10 @@ func (s *Server) handle(sess gssh.Session) {
 	// Seed initial Width/Height on the model so View() renders on first
 	// frame (otherwise alt-screen flips with empty content and the user
 	// sees a black void until they press a key).
+	// Display the SSH username in the TUI header. Anonymous (no user)
+	// renders as "guest@swap"; many ssh clients default to $USER from
+	// the local box which is fine — the value is purely cosmetic since
+	// our server doesn't authenticate.
 	user := sess.User()
 	if user == "" {
 		user = "guest"
