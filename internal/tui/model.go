@@ -66,6 +66,11 @@ type Config struct {
 	Fingerprint string
 	Username    string // SSH session username for the @swap header tag
 
+	// DryRun stops the wizard at the Quote step. Pressing Confirm shows
+	// the would-be order shape but never calls POST /create. Useful for
+	// integration tests and 'try before you commit funds' tours.
+	DryRun bool
+
 	// InitialWidth / InitialHeight let SSH hosts seed dimensions before
 	// the first WindowSizeMsg arrives, so the alt-screen flip on
 	// connection-start renders the form immediately instead of a void.
@@ -405,6 +410,13 @@ func (m Model) updateSwap(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.updateMemo(msg)
 	case stQuoted:
 		if msg.String() == "enter" {
+			if m.cfg.DryRun {
+				// Stop here. Show a friendly explainer in the error
+				// channel (no actual error — just preempts the call).
+				m.swapErr = "dry-run mode — POST /create suppressed. esc to start over."
+				m.state = stError
+				return m, nil
+			}
 			m.state = stCreating
 			return m, m.cmdCreate()
 		}

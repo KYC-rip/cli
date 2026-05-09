@@ -22,6 +22,7 @@ func main() {
 	apiBase := flag.String("api", envOr("KYC_API_BASE", "https://api.kyc.rip"), "kyc.rip API base URL")
 	apiKey := flag.String("api-key", envOr("KYC_API_KEY", ""), "scoped API key (optional)")
 	timeout := flag.Duration("timeout", 12*time.Second, "API timeout per call")
+	dryRun := flag.Bool("dry-run", false, "stop at the quote step — never call POST /create")
 	showVersion := flag.Bool("version", false, "print version and exit")
 	flag.Parse()
 	if *showVersion {
@@ -31,7 +32,7 @@ func main() {
 
 	cli := api.New(api.WithBase(*apiBase), api.WithAPIKey(*apiKey), api.WithTimeout(*timeout))
 	prog := tea.NewProgram(
-		tui.New(tui.Config{Client: cli}),
+		tui.New(tui.Config{Client: cli, DryRun: *dryRun}),
 		tea.WithAltScreen(),
 		tea.WithMouseCellMotion(),
 	)
