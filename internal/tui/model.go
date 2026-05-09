@@ -369,7 +369,11 @@ func (m Model) isTypingState() bool {
 		return false
 	}
 	switch m.state {
-	case stAmount, stAddress, stMemo:
+	case stPickFrom, stPickTo, stAmount, stAddress, stMemo:
+		// Pickers also accept free-text tickers like 'LTC' / 'TRX' /
+		// 'TRC20' — so global hotkeys ('s'/'t'/'a') must be disabled
+		// while the user is typing. Tabs are still reachable via
+		// click or Tab key.
 		return true
 	}
 	return false
