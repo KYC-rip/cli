@@ -10,7 +10,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/kyc-rip/sshwap/internal/sshhost"
+	"github.com/kyc-rip/cli/internal/sshhost"
 )
 
 // Set by goreleaser via -ldflags="-X main.version=… -X main.commit=…".

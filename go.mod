@@ -1,4 +1,4 @@
-module github.com/kyc-rip/sshwap
+module github.com/kyc-rip/cli
 
 go 1.25.0
 

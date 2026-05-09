@@ -81,7 +81,7 @@ release:
   prerelease: auto
   github:
     owner: kyc-rip
-    name: sshwap
+    name: cli
 
 brews:
   - name: kyc-cli
