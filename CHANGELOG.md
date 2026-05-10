@@ -4,6 +4,19 @@ All notable changes to **kyc-cli** and **sshwap** are documented here.
 The format is loosely [Keep a Changelog](https://keepachangelog.com/);
 versioning follows [SemVer](https://semver.org/).
 
+## [0.1.30] — 2026-05-10
+
+### Fixed
+- **Native mouse-select-and-copy now works.** v0.1.29 still relied on
+  OSC 52 escapes for the clipboard, which Warp and Termius gate behind
+  a privacy setting that's OFF by default. With `tea.WithMouseCellMotion`
+  enabled, the terminal forwarded every click to bubbletea, blocking
+  native click-drag selection — leaving users with no working copy
+  path. v0.1.30 drops mouse-cell-motion entirely so the user's
+  terminal handles selection natively. OSC 52 (`c` / `C` / `enter`)
+  still fires for terminals that have it enabled. Footer hint updated
+  to mention mouse-select.
+
 ## [0.1.29] — 2026-05-10
 
 ### Fixed

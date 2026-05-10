@@ -78,7 +78,9 @@ func main() {
 	prog := tea.NewProgram(
 		tui.New(tui.Config{Client: cli, DryRun: *dryRun, ClipboardWriter: out}),
 		tea.WithAltScreen(),
-		tea.WithMouseCellMotion(),
+		// Mouse cell-motion off so the user's native click-drag-to-select
+		// keeps working as a clipboard fallback when OSC 52 is gated by
+		// the terminal (Warp / Termius commonly default it off).
 		tea.WithOutput(out),
 	)
 	if _, err := prog.Run(); err != nil {
