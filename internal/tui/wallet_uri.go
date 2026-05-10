@@ -49,8 +49,13 @@ func walletURI(ticker, network, addr string, amount float64) string {
 			return fmt.Sprintf("ethereum:%s?value=%.0f", addr, wei)
 		}
 		return "ethereum:" + addr
-	case t == "TRX" || n == "TRC20":
-		// TRON / TRC20: TronLink honors `tron:address?amount=...`.
+	case t == "TRX" && n != "TRC20":
+		// Native TRX only. We deliberately do NOT emit `tron:…?amount=N`
+		// for TRC20 tokens (USDT-TRC20, USDC-TRC20) — the URI scheme is
+		// interpreted as a NATIVE TRX transfer, so a wallet opening it
+		// would try to send N TRX to the deposit address rather than N
+		// tokens. Token transfers need TRC20-specific URI formats with
+		// the contract address; out of scope here.
 		return "tron:" + addr + q("amount", amt)
 	case t == "SOL":
 		return "solana:" + addr + q("amount", amt)

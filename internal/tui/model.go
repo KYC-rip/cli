@@ -79,6 +79,13 @@ type Config struct {
 	// connection-start renders the form immediately instead of a void.
 	InitialWidth  int
 	InitialHeight int
+
+	// ClipboardWriter is the same io.Writer Bubble Tea is configured with
+	// via tea.WithOutput, wrapped in a mutex (see LockedWriter). The model
+	// writes OSC 52 clipboard escapes directly through it instead of
+	// embedding them in View() output — bubbletea's renderer is not a
+	// safe transport for device-control sequences.
+	ClipboardWriter *LockedWriter
 }
 
 // --- model ---
@@ -109,8 +116,6 @@ type Model struct {
 	copyToast     string // ephemeral "📋 copied …" feedback; cleared by clearToastMsg.
 	depositFocus  int    // 0 = address, 1 = QR URL. up/down cycles, enter copies.
 	ghostMode     bool   // true while on tabGhost — routes API calls through /v2/exchange/bridge.
-	pendingOSC52  string // OSC 52 clipboard escape to prepend to next View() output, then clear.
-	pendingOSC52T uint64 // monotonically-bumped token so clearOSC52Msg only clears its own emission.
 
 	// track tab
 	trackIn    textinput.Model
@@ -165,7 +170,6 @@ type statusDoneMsg struct {
 }
 type tickMsg time.Time
 type clearToastMsg struct{}
-type clearOSC52Msg struct{ token uint64 }
 
 // --- commands ---
 
@@ -402,14 +406,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.copyToast = ""
 		return m, nil
 
-	case clearOSC52Msg:
-		// Only clear if our token is still the latest — avoids clobbering a
-		// fresher copy that fired between this tick being scheduled and now.
-		if msg.token == m.pendingOSC52T {
-			m.pendingOSC52 = ""
-		}
-		return m, nil
-
 	case tickMsg:
 		var cmds []tea.Cmd
 		if m.pollOn && m.trade != nil && m.trade.ID != "" && !isTerminal(m.trade.Status) {
@@ -493,34 +489,29 @@ func (m Model) handleDepositKeys(msg tea.KeyMsg) (Model, tea.Cmd, bool) {
 			label = "📋 QR URL copied to clipboard"
 			payload = qrBrowserURL(activeAddr)
 		}
+		m.writeClipboard(payload)
 		m.copyToast = label
-		m.pendingOSC52T++
-		m.pendingOSC52 = osc52Clipboard(payload)
-		tok := m.pendingOSC52T
-		return m, tea.Batch(
-			tea.Tick(50*time.Millisecond, func(_ time.Time) tea.Msg { return clearOSC52Msg{token: tok} }),
-			tea.Tick(2*time.Second, func(_ time.Time) tea.Msg { return clearToastMsg{} }),
-		), true
+		return m, tea.Tick(2*time.Second, func(_ time.Time) tea.Msg { return clearToastMsg{} }), true
 	case "c":
+		m.writeClipboard(activeAddr)
 		m.copyToast = "📋 address copied to clipboard"
-		m.pendingOSC52T++
-		m.pendingOSC52 = osc52Clipboard(activeAddr)
-		tok := m.pendingOSC52T
-		return m, tea.Batch(
-			tea.Tick(50*time.Millisecond, func(_ time.Time) tea.Msg { return clearOSC52Msg{token: tok} }),
-			tea.Tick(2*time.Second, func(_ time.Time) tea.Msg { return clearToastMsg{} }),
-		), true
+		return m, tea.Tick(2*time.Second, func(_ time.Time) tea.Msg { return clearToastMsg{} }), true
 	case "C":
+		m.writeClipboard(qrBrowserURL(activeAddr))
 		m.copyToast = "📋 QR URL copied to clipboard"
-		m.pendingOSC52T++
-		m.pendingOSC52 = osc52Clipboard(qrBrowserURL(activeAddr))
-		tok := m.pendingOSC52T
-		return m, tea.Batch(
-			tea.Tick(50*time.Millisecond, func(_ time.Time) tea.Msg { return clearOSC52Msg{token: tok} }),
-			tea.Tick(2*time.Second, func(_ time.Time) tea.Msg { return clearToastMsg{} }),
-		), true
+		return m, tea.Tick(2*time.Second, func(_ time.Time) tea.Msg { return clearToastMsg{} }), true
 	}
 	return m, nil, false
+}
+
+// writeClipboard emits the OSC 52 clipboard-write escape directly to the
+// program's output writer (mutex-protected so it doesn't race with
+// bubbletea's renderer). View() never sees the escape.
+func (m Model) writeClipboard(text string) {
+	if m.cfg.ClipboardWriter == nil || text == "" {
+		return
+	}
+	_, _ = m.cfg.ClipboardWriter.Write([]byte(osc52Clipboard(text)))
 }
 
 func (m Model) updateSwap(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -614,6 +605,9 @@ func (m *Model) resetSwap() {
 	m.swapErr = ""
 	m.pollOn = false
 	m.qrFullScreen = false
+	m.qrImageMode = false
+	m.copyToast = ""
+	m.depositFocus = 0
 }
 
 // updatePicker handles stPickFrom / stPickTo: digits 1-9 pick from the
@@ -743,6 +737,12 @@ func (m Model) updateTrack(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.trackErr = ""
 		m.trackPoll = false
 		m.trackIn.SetValue("")
+		// Clear deposit-panel state too — otherwise fullscreen / focus /
+		// toast / image-mode bleed into the next tracked order.
+		m.qrFullScreen = false
+		m.qrImageMode = false
+		m.copyToast = ""
+		m.depositFocus = 0
 		return m, nil
 	}
 	var cmd tea.Cmd
@@ -799,14 +799,7 @@ func (m Model) View() string {
 	if m.width == 0 {
 		return ""
 	}
-	out := m.viewBody()
-	// Prepend any pending OSC 52 clipboard escape so it rides one frame and
-	// is processed by the user's terminal. tea.Println doesn't reliably
-	// emit escapes in alt-screen, so we inline it here.
-	if m.pendingOSC52 != "" {
-		out = m.pendingOSC52 + out
-	}
-	return out
+	return m.viewBody()
 }
 
 func (m Model) viewBody() string {

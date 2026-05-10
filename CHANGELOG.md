@@ -4,6 +4,28 @@ All notable changes to **kyc-cli** and **sshwap** are documented here.
 The format is loosely [Keep a Changelog](https://keepachangelog.com/);
 versioning follows [SemVer](https://semver.org/).
 
+## [0.1.29] — 2026-05-10
+
+### Fixed
+- **TRC20 wallet URI no longer opens a native TRX transfer.** v0.1.17–
+  0.1.28 emitted `tron:<addr>?amount=N` for USDT-TRC20 deposits; that
+  URI scheme is interpreted by wallets as a native TRX transfer, which
+  meant a user clicking it could send N TRX (not N USDT) to the deposit
+  address. Now restricted to native TRX only — TRC20 token URIs need
+  EIP-681-style with contract address; out of scope until done right.
+- **Clipboard copy via mutex-protected out-of-band writer.** Codex
+  review #3 flagged routing OSC 52 through `View()` as the weak link
+  (bubbletea's renderer runs `ansi.Truncate`/`StringWidth`/line-diff
+  over View output, not safe for device-control sequences). New
+  `internal/tui/clipboard.go` defines `LockedWriter` — wraps the SSH
+  session / stdout in a mutex; the model writes OSC 52 directly through
+  it, sharing bubbletea's output stream without racing the renderer.
+  Both `cmd/sshwap` and `cmd/kyc-cli` constructed via `tea.WithOutput
+  (lockedWriter)`. View() is now purely visual.
+- Track-tab `esc` and `resetSwap` now clear `qrFullScreen`,
+  `qrImageMode`, `copyToast`, and `depositFocus` — those state flags
+  were leaking into the next tracked order / next swap.
+
 ## [0.1.28] — 2026-05-10
 
 ### Added

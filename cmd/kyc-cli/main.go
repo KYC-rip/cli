@@ -74,10 +74,12 @@ func main() {
 	}
 
 	cli := api.New(api.WithBase(*apiBase), api.WithAPIKey(*apiKey), api.WithTimeout(*timeout))
+	out := tui.NewLockedWriter(os.Stdout)
 	prog := tea.NewProgram(
-		tui.New(tui.Config{Client: cli, DryRun: *dryRun}),
+		tui.New(tui.Config{Client: cli, DryRun: *dryRun, ClipboardWriter: out}),
 		tea.WithAltScreen(),
 		tea.WithMouseCellMotion(),
+		tea.WithOutput(out),
 	)
 	if _, err := prog.Run(); err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)

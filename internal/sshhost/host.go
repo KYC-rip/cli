@@ -183,12 +183,16 @@ func (s *Server) handle(sess gssh.Session) {
 	if user == "" {
 		user = "guest"
 	}
+	// Single locked writer the program AND the model share, so OSC 52
+	// clipboard writes don't race the renderer's frame writes.
+	out := tui.NewLockedWriter(sess)
 	cfg := tui.Config{
-		Client:        s.client,
-		Fingerprint:   s.Fingerprint(),
-		Username:      user,
-		InitialWidth:  pty.Window.Width,
-		InitialHeight: pty.Window.Height,
+		Client:          s.client,
+		Fingerprint:     s.Fingerprint(),
+		Username:        user,
+		InitialWidth:    pty.Window.Width,
+		InitialHeight:   pty.Window.Height,
+		ClipboardWriter: out,
 	}
 	// Pass the SSH session's env (TERM, COLORTERM, LANG…) to bubbletea
 	// so termenv/lipgloss detect the *client's* color profile per session,
@@ -197,7 +201,7 @@ func (s *Server) handle(sess gssh.Session) {
 	prog := tea.NewProgram(
 		tui.New(cfg),
 		tea.WithInput(sess),
-		tea.WithOutput(sess),
+		tea.WithOutput(out),
 		tea.WithAltScreen(),
 		tea.WithMouseCellMotion(),
 		tea.WithEnvironment(environ),
