@@ -84,6 +84,16 @@ var (
 	styleOk  = lipgloss.NewStyle().Foreground(colSuccess)
 	styleDim = lipgloss.NewStyle().Foreground(colMuted)
 
+	// Ghost-mode banner: skull + accent text, dim border to distinguish
+	// from regular swap flow. Width pinned to inner card so it doesn't
+	// reflow when content shifts.
+	styleGhostBanner = lipgloss.NewStyle().
+				Foreground(colAccent).
+				Border(lipgloss.NormalBorder()).
+				BorderForeground(colAccent).
+				Padding(0, 1).
+				Width(cardInnerWidth)
+
 	// Route-bucket cards: idle = dim border, active = yellow border.
 	styleRouteCard = lipgloss.NewStyle().
 			Border(lipgloss.NormalBorder()).

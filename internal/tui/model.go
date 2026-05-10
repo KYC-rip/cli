@@ -21,6 +21,7 @@ import (
 // zone manager via NewModel() so concurrent SSH sessions don't collide.
 const (
 	zTabSwap   = "tab-swap"
+	zTabGhost  = "tab-ghost"
 	zTabTrack  = "tab-track"
 	zTabAbout  = "tab-about"
 	zButton    = "button-primary"
@@ -34,8 +35,9 @@ type tab int
 
 const (
 	tabSwap tab = iota
+	tabGhost
 	tabTrack
-	tabAbout
+	tabAbout // not in main tab bar; reachable via 'a' key
 )
 
 // --- swap wizard states ---
@@ -106,6 +108,7 @@ type Model struct {
 	qrImageMode   bool   // 'g' toggles iTerm2 inline-image protocol — Warp/iTerm/WezTerm.
 	copyToast     string // ephemeral "📋 copied …" feedback; cleared by clearToastMsg.
 	depositFocus  int    // 0 = address, 1 = QR URL. up/down cycles, enter copies.
+	ghostMode     bool   // true while on tabGhost — routes API calls through /v2/exchange/bridge.
 	pendingOSC52  string // OSC 52 clipboard escape to prepend to next View() output, then clear.
 	pendingOSC52T uint64 // monotonically-bumped token so clearOSC52Msg only clears its own emission.
 
@@ -171,10 +174,17 @@ func (m Model) cmdEstimate() tea.Cmd {
 	from, fromNet := splitTickerNet(m.from)
 	to, toNet := splitTickerNet(m.to)
 	amt, _ := strconv.ParseFloat(strings.TrimSpace(m.amtIn.Value()), 64)
+	ghost := m.ghostMode
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), apiTimeout)
 		defer cancel()
-		q, err := cli.Estimate(ctx, from, fromNet, to, toNet, amt)
+		var q *api.Estimate
+		var err error
+		if ghost {
+			q, err = cli.EstimateBridge(ctx, from, fromNet, to, toNet, amt)
+		} else {
+			q, err = cli.Estimate(ctx, from, fromNet, to, toNet, amt)
+		}
 		return estimateDoneMsg{q, err}
 	}
 }
@@ -211,10 +221,23 @@ func (m Model) cmdCreate() tea.Cmd {
 		AddressMemo:  memo,
 		HoudiniQuote: hq,
 	}
+	// Ghost (bridge) routes that need a refund address default to the
+	// destination address — same fallback the Telegram bot uses. Better
+	// than failing the order; user can override later via a future field.
+	if m.ghostMode {
+		req.RefundAddress = addr
+	}
+	ghost := m.ghostMode
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), apiTimeout)
 		defer cancel()
-		t, err := cli.Create(ctx, req)
+		var t *api.Trade
+		var err error
+		if ghost {
+			t, err = cli.CreateBridge(ctx, req)
+		} else {
+			t, err = cli.Create(ctx, req)
+		}
 		return tradeDoneMsg{t, err}
 	}
 }
@@ -248,15 +271,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Tab clicks (any state)
 		if m.zm.Get(zTabSwap).InBounds(msg) {
 			m.tab = tabSwap
+			m.ghostMode = false
+			m.resetSwap()
+			return m, nil
+		}
+		if m.zm.Get(zTabGhost).InBounds(msg) {
+			m.tab = tabGhost
+			m.ghostMode = true
+			m.resetSwap()
 			return m, nil
 		}
 		if m.zm.Get(zTabTrack).InBounds(msg) {
 			m.tab = tabTrack
 			m.trackIn.Focus()
-			return m, nil
-		}
-		if m.zm.Get(zTabAbout).InBounds(msg) {
-			m.tab = tabAbout
 			return m, nil
 		}
 		// Button click → synthesize Enter
@@ -286,6 +313,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			switch msg.String() {
 			case "s":
 				m.tab = tabSwap
+				m.ghostMode = false
+				m.resetSwap()
+				return m, nil
+			case "g":
+				m.tab = tabGhost
+				m.ghostMode = true
+				m.resetSwap()
 				return m, nil
 			case "t":
 				m.tab = tabTrack
@@ -303,7 +337,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return newM, cmd
 		}
 
-		if m.tab == tabSwap {
+		if m.tab == tabSwap || m.tab == tabGhost {
 			return m.updateSwap(msg)
 		}
 		if m.tab == tabTrack {
@@ -404,7 +438,7 @@ func (m Model) isTypingState() bool {
 	if m.tab == tabTrack {
 		return m.trackIn.Focused()
 	}
-	if m.tab != tabSwap {
+	if m.tab != tabSwap && m.tab != tabGhost {
 		return false
 	}
 	switch m.state {
@@ -425,7 +459,7 @@ func (m Model) isTypingState() bool {
 // handled=true when the keystroke was consumed.
 func (m Model) handleDepositKeys(msg tea.KeyMsg) (Model, tea.Cmd, bool) {
 	var activeAddr string
-	if m.tab == tabSwap && m.state == stOrdered && m.trade != nil {
+	if (m.tab == tabSwap || m.tab == tabGhost) && m.state == stOrdered && m.trade != nil {
 		activeAddr = m.trade.DepositAddress
 	} else if m.tab == tabTrack && m.trackTrade != nil && !isTerminal(m.trackTrade.Status) {
 		activeAddr = m.trackTrade.DepositAddress
@@ -437,7 +471,7 @@ func (m Model) handleDepositKeys(msg tea.KeyMsg) (Model, tea.Cmd, bool) {
 	case "q":
 		m.qrFullScreen = !m.qrFullScreen
 		return m, nil, true
-	case "g":
+	case "i":
 		m.qrImageMode = !m.qrImageMode
 		return m, nil, true
 	case "up", "k":
@@ -803,7 +837,7 @@ func (m Model) viewBody() string {
 	header := m.renderHeader()
 	var body string
 	switch m.tab {
-	case tabSwap:
+	case tabSwap, tabGhost:
 		body = m.renderSwap()
 	case tabTrack:
 		body = m.renderTrack()
@@ -831,8 +865,8 @@ func (m Model) renderHeader() string {
 	left := styleUser.Render(user + "@swap")
 	tabs := []string{
 		m.zm.Mark(zTabSwap, tabRender("Swap", m.tab == tabSwap)),
+		m.zm.Mark(zTabGhost, tabRender("Ghost", m.tab == tabGhost)),
 		m.zm.Mark(zTabTrack, tabRender("Track", m.tab == tabTrack)),
-		m.zm.Mark(zTabAbout, tabRender("About", m.tab == tabAbout)),
 	}
 	right := strings.Join(tabs, "  ")
 	// Spacer flex
@@ -854,6 +888,15 @@ func tabRender(name string, active bool) string {
 }
 
 func (m Model) renderSwap() string {
+	body := m.renderSwapBody()
+	if m.ghostMode {
+		banner := styleGhostBanner.Render("☠ GHOST MODE  ·  privacy-routed  ·  no provider sees full path")
+		body = banner + "\n\n" + body
+	}
+	return body
+}
+
+func (m Model) renderSwapBody() string {
 	switch m.state {
 	case stPickFrom:
 		return m.renderPicker("Sending", m.from)
@@ -866,6 +909,9 @@ func (m Model) renderSwap() string {
 	case stMemo:
 		return m.renderMemo()
 	case stQuoting:
+		if m.ghostMode {
+			return styleDim.Render("fetching ghost-bridge quote across privacy engines…")
+		}
 		return styleDim.Render("fetching best quote across engines…")
 	case stQuoted:
 		return m.renderQuoted()
@@ -956,8 +1002,17 @@ func (m Model) renderQuoted() string {
 		r := m.picks.get(mode)
 		num := fmt.Sprintf("%d.", i+1)
 		head := fmt.Sprintf("%s  %s %s", num, mode.Glyph(), mode.Label())
-		body := fmt.Sprintf("   %s · ~%s %s · ETA %dm · KYC %s",
-			r.Provider, fmtAmt(r.AmountTo), to, r.ETA, ratingOrDash(r.KYC))
+		var body string
+		if m.ghostMode && r.BridgeLabel != "" {
+			// Ghost-mode card emphasises the bridge label (e.g. MONERO_TUNNEL,
+			// ZANO_PRIVACY_BRIDGE, FROST) over the raw provider name — that's
+			// what the user is actually trusting in a privacy route.
+			body = fmt.Sprintf("   %s · ~%s %s · ETA %dm · %s",
+				r.BridgeLabel, fmtAmt(r.AmountTo), to, r.ETA, badgeOrDash(r.BridgeBadge))
+		} else {
+			body = fmt.Sprintf("   %s · ~%s %s · ETA %dm · KYC %s",
+				r.Provider, fmtAmt(r.AmountTo), to, r.ETA, ratingOrDash(r.KYC))
+		}
 		card := lipgloss.JoinVertical(lipgloss.Left, head, body)
 		if mode == m.routePick {
 			card = styleRouteCardActive.Render(card)
@@ -975,6 +1030,13 @@ func (m Model) renderQuoted() string {
 		styleDim.Render("1-4 pick · tab cycle · enter confirm · esc back"),
 	)
 	return lipgloss.JoinVertical(lipgloss.Left, rows...)
+}
+
+func badgeOrDash(s string) string {
+	if s == "" {
+		return "—"
+	}
+	return strings.ToUpper(s)
 }
 
 func ratingOrDash(s string) string {
@@ -1164,10 +1226,10 @@ func (m Model) renderAbout() string {
 
 func (m Model) renderHint() string {
 	switch m.tab {
-	case tabSwap:
+	case tabSwap, tabGhost:
 		switch m.state {
 		case stPickFrom, stPickTo:
-			return "1-9 pick · type ticker · enter confirm · s swap · t track · a about · ctrl+c quit"
+			return "1-9 pick · type ticker · enter confirm · s swap · g ghost · t track · a about · ctrl+c quit"
 		case stAmount, stAddress, stMemo:
 			return "type · enter continue · esc back · ctrl+c quit"
 		case stQuoted:
@@ -1176,9 +1238,9 @@ func (m Model) renderHint() string {
 			return "esc reset · t track · ctrl+c quit"
 		}
 	case tabTrack:
-		return "type id · enter lookup · esc clear · s swap · a about · ctrl+c quit"
+		return "type id · enter lookup · esc clear · s swap · g ghost · a about · ctrl+c quit"
 	case tabAbout:
-		return "esc/enter back · s swap · t track · ctrl+c quit"
+		return "esc/enter back · s swap · g ghost · t track · ctrl+c quit"
 	}
 	return "ctrl+c quit"
 }

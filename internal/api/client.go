@@ -54,16 +54,21 @@ type Currency struct {
 }
 
 type Route struct {
-	Provider     string  `json:"provider"`
-	Engine       string  `json:"engine"`
-	AmountTo     float64 `json:"amount_to"`
-	AmountFrom   float64 `json:"amount_from"`
-	KYC          string  `json:"kyc"`
-	LogPolicy    string  `json:"log_policy"`
-	ETA          int     `json:"eta"`
-	Fixed        bool    `json:"fixed"`
-	Spread       float64 `json:"spread,omitempty"`
-	HoudiniQuote any     `json:"_houdiniQuote,omitempty"`
+	Provider        string  `json:"provider"`
+	Engine          string  `json:"engine"`
+	AmountTo        float64 `json:"amount_to"`
+	AmountFrom      float64 `json:"amount_from"`
+	KYC             string  `json:"kyc"`
+	LogPolicy       string  `json:"log_policy"`
+	ETA             int     `json:"eta"`
+	Fixed           bool    `json:"fixed"`
+	Spread          float64 `json:"spread,omitempty"`
+	HoudiniQuote    any     `json:"_houdiniQuote,omitempty"`
+	// Bridge / Ghost-only metadata. Populated by /v2/exchange/bridge/estimate.
+	BridgeLabel     string `json:"bridgeLabel,omitempty"`
+	BridgeBadge     string `json:"bridgeBadge,omitempty"`
+	BridgeHighlight string `json:"bridgeHighlight,omitempty"`
+	RequiresRefund  bool   `json:"requiresRefund,omitempty"`
 }
 
 type Estimate struct {
@@ -92,8 +97,9 @@ type CreateReq struct {
 	AddressTo    string  `json:"address_to"`
 	FixedRate    bool    `json:"fixed_rate,omitempty"`
 	HoudiniQuote any     `json:"_houdiniQuote,omitempty"`
-	AddressMemo  string  `json:"address_memo,omitempty"`
-	Source       string  `json:"source,omitempty"`
+	AddressMemo   string `json:"address_memo,omitempty"`
+	RefundAddress string `json:"refund_address,omitempty"`
+	Source        string `json:"source,omitempty"`
 }
 
 type Trade struct {
@@ -185,6 +191,69 @@ func (c *Client) Create(ctx context.Context, req CreateReq) (*Trade, error) {
 	}
 	var out Trade
 	if err := c.do(ctx, http.MethodPost, "/v2/exchange/create", req, &out); err != nil {
+		return nil, err
+	}
+	if out.ID == "" && out.TradeID != "" {
+		out.ID = out.TradeID
+	}
+	return &out, nil
+}
+
+// EstimateBridge calls the Ghost / privacy-routed estimate endpoint. The
+// response shape matches the regular Estimate but each Route carries
+// extra bridge metadata (BridgeLabel, BridgeBadge, BridgeHighlight).
+func (c *Client) EstimateBridge(ctx context.Context, from, fromNet, to, toNet string, amount float64) (*Estimate, error) {
+	q := url.Values{}
+	q.Set("from", from)
+	q.Set("to", to)
+	if fromNet != "" {
+		q.Set("network_from", fromNet)
+	}
+	if toNet != "" {
+		q.Set("network_to", toNet)
+	}
+	q.Set("amount", strconv.FormatFloat(amount, 'f', -1, 64))
+	var out Estimate
+	if err := c.do(ctx, http.MethodGet, "/v2/exchange/bridge/estimate?"+q.Encode(), nil, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// CreateBridge calls the Ghost / privacy-routed create endpoint. Some
+// engines (e.g. Zano) require a refund_address; the API rejects without
+// it. The response can be a single Trade or an array of legs — we
+// unmarshal as a generic and pick the first leg as the user-facing trade.
+func (c *Client) CreateBridge(ctx context.Context, req CreateReq) (*Trade, error) {
+	if req.Source == "" {
+		req.Source = "cli"
+	}
+	// Bridge create may return either a Trade object or [Trade, Trade...]
+	// depending on whether the route is multi-leg. Unmarshal into json.RawMessage
+	// and disambiguate.
+	var raw json.RawMessage
+	if err := c.do(ctx, http.MethodPost, "/v2/exchange/bridge/create", req, &raw); err != nil {
+		return nil, err
+	}
+	if len(raw) == 0 {
+		return nil, fmt.Errorf("empty bridge create response")
+	}
+	if raw[0] == '[' {
+		var trades []Trade
+		if err := json.Unmarshal(raw, &trades); err != nil {
+			return nil, err
+		}
+		if len(trades) == 0 {
+			return nil, fmt.Errorf("empty bridge trades array")
+		}
+		t := trades[0]
+		if t.ID == "" && t.TradeID != "" {
+			t.ID = t.TradeID
+		}
+		return &t, nil
+	}
+	var out Trade
+	if err := json.Unmarshal(raw, &out); err != nil {
 		return nil, err
 	}
 	if out.ID == "" && out.TradeID != "" {

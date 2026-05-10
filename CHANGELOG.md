@@ -4,6 +4,34 @@ All notable changes to **kyc-cli** and **sshwap** are documented here.
 The format is loosely [Keep a Changelog](https://keepachangelog.com/);
 versioning follows [SemVer](https://semver.org/).
 
+## [0.1.28] — 2026-05-10
+
+### Added
+- **Ghost tab** — privacy-routed multi-leg swap, the same product as
+  `/ghost` on kyc.rip. Tab bar now reads `Swap | Ghost | Track`. Ghost
+  reuses the swap wizard but routes API calls through `/v2/exchange/
+  bridge/{estimate,create}`, which split the trade into legs so no
+  single provider sees the full path. Bridge labels (`MONERO_TUNNEL`,
+  `ZANO_PRIVACY_BRIDGE`, `FROST`, etc.) are surfaced on the route
+  cards instead of provider names. Refund address defaults to the
+  destination address — same fallback the Telegram bot uses.
+- Ghost banner (☠ skull + accent border) above the wizard whenever
+  Ghost mode is active.
+- New `g` global hotkey switches to the Ghost tab. Image-mode toggle
+  in the deposit panel renamed from `g` to `i` to free the keystroke.
+
+### Changed
+- About is no longer in the main tab bar — reachable only via the `a`
+  hotkey or footer hint. The bar's three slots are reserved for the
+  primary swap surfaces.
+- `internal/api/client.go` — `Route` carries `BridgeLabel`,
+  `BridgeBadge`, `BridgeHighlight`, `RequiresRefund` fields populated
+  by the bridge endpoint. `CreateReq` gains `RefundAddress`. New
+  `EstimateBridge` and `CreateBridge` methods. `CreateBridge` handles
+  the bridge endpoint's array-or-single response (multi-leg trades
+  return `[Trade, Trade…]`; we use the first leg as the user-facing
+  trade and keep polling status on its id).
+
 ## [0.1.27] — 2026-05-09
 
 ### Fixed
