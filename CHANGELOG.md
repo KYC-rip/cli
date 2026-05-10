@@ -4,6 +4,16 @@ All notable changes to **kyc-cli** and **sshwap** are documented here.
 The format is loosely [Keep a Changelog](https://keepachangelog.com/);
 versioning follows [SemVer](https://semver.org/).
 
+## [0.1.33] — 2026-05-10
+
+### Changed
+- **Select-mode toggle is now `ctrl+s`** (was `m`). The `m` binding only
+  fired when no textinput was focused, so users couldn't flip into
+  select-mode while at the amount/address/memo step — exactly when
+  they need to copy a quote line above the input. `ctrl+s` lives in
+  the always-on shortcut group with `ctrl+c`, so it works regardless
+  of focus.
+
 ## [0.1.32] — 2026-05-10
 
 ### Added

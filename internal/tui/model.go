@@ -309,10 +309,26 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyMsg:
-		// Always-on shortcuts
+		// Always-on shortcuts — fire even while a textinput is focused,
+		// otherwise the user can't escape into select-mode while typing
+		// an address.
 		switch msg.String() {
 		case "ctrl+c", "ctrl+d":
 			return m, tea.Quit
+		case "ctrl+s":
+			m.selectMode = !m.selectMode
+			if m.selectMode {
+				m.copyToast = "🖱 select mode — drag to select · ctrl+s for clicks"
+				return m, tea.Batch(
+					tea.DisableMouse,
+					tea.Tick(3*time.Second, func(_ time.Time) tea.Msg { return clearToastMsg{} }),
+				)
+			}
+			m.copyToast = "🖱 click mode — ctrl+s for select"
+			return m, tea.Batch(
+				tea.EnableMouseCellMotion,
+				tea.Tick(2*time.Second, func(_ time.Time) tea.Msg { return clearToastMsg{} }),
+			)
 		}
 
 		// Global hotkeys (only when NOT actively typing into the active step)
@@ -335,24 +351,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "a":
 				m.tab = tabAbout
 				return m, nil
-			case "m":
-				// Runtime toggle: clicks-vs-text-select. Some terminals
-				// (notably Warp) don't honor the modifier-bypass
-				// convention for native selection, so a hard toggle is
-				// the only reliable way to get both interactions.
-				m.selectMode = !m.selectMode
-				if m.selectMode {
-					m.copyToast = "🖱 select mode — drag to select · m for clicks"
-					return m, tea.Batch(
-						tea.DisableMouse,
-						tea.Tick(3*time.Second, func(_ time.Time) tea.Msg { return clearToastMsg{} }),
-					)
-				}
-				m.copyToast = "🖱 click mode — m for select"
-				return m, tea.Batch(
-					tea.EnableMouseCellMotion,
-					tea.Tick(2*time.Second, func(_ time.Time) tea.Msg { return clearToastMsg{} }),
-				)
 			}
 		}
 
@@ -1080,7 +1078,7 @@ func (m Model) renderOrdered() string {
 		styleDim.Render("Send"),
 		styleOk.Render(fmt.Sprintf("%s %s", fmtAmt(t.FromAmount), strings.ToUpper(t.FromTicker))),
 		"",
-		styleDim.Render("To deposit address  ") + styleDim.Render("(↑↓ enter copy · m → select mode)"),
+		styleDim.Render("To deposit address  ") + styleDim.Render("(↑↓ enter copy · ctrl+s → select mode)"),
 		addrCaret + addrLine,
 		"",
 		qrCaret + qrLink,
