@@ -4,6 +4,17 @@ All notable changes to **kyc-cli** and **sshwap** are documented here.
 The format is loosely [Keep a Changelog](https://keepachangelog.com/);
 versioning follows [SemVer](https://semver.org/).
 
+## [0.1.31] — 2026-05-10
+
+### Fixed
+- **Restored tab/button mouse clicks (regression from v0.1.30).** v0.1.30
+  dropped `tea.WithMouseCellMotion` to unlock native text-select, but
+  that also disabled bubblezone hit-testing — tabs, buttons, and asset
+  rows stopped responding to clicks. Re-enabled mouse-cell-motion;
+  text-select still works via the terminal's modifier passthrough
+  (⌥ on macOS, shift on Linux/Windows). Footer hint updated to
+  surface the modifier.
+
 ## [0.1.30] — 2026-05-10
 
 ### Fixed

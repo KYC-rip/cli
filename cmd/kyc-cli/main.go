@@ -78,9 +78,11 @@ func main() {
 	prog := tea.NewProgram(
 		tui.New(tui.Config{Client: cli, DryRun: *dryRun, ClipboardWriter: out}),
 		tea.WithAltScreen(),
-		// Mouse cell-motion off so the user's native click-drag-to-select
-		// keeps working as a clipboard fallback when OSC 52 is gated by
-		// the terminal (Warp / Termius commonly default it off).
+		// Mouse cell-motion ON so bubblezone tab/button clicks register.
+		// Hold Option (⌥) on macOS or Shift on Linux/Windows while
+		// dragging to bypass and let the terminal handle text selection
+		// — needed when OSC 52 clipboard is gated off in the terminal.
+		tea.WithMouseCellMotion(),
 		tea.WithOutput(out),
 	)
 	if _, err := prog.Run(); err != nil {

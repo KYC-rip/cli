@@ -1059,7 +1059,7 @@ func (m Model) renderOrdered() string {
 		styleDim.Render("Send"),
 		styleOk.Render(fmt.Sprintf("%s %s", fmtAmt(t.FromAmount), strings.ToUpper(t.FromTicker))),
 		"",
-		styleDim.Render("To deposit address  ") + styleDim.Render("(↑↓ move · enter copy · or mouse-select)"),
+		styleDim.Render("To deposit address  ") + styleDim.Render("(↑↓ enter copy · ⌥/shift+drag selects)"),
 		addrCaret + addrLine,
 		"",
 		qrCaret + qrLink,

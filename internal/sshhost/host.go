@@ -203,13 +203,12 @@ func (s *Server) handle(sess gssh.Session) {
 		tea.WithInput(sess),
 		tea.WithOutput(out),
 		tea.WithAltScreen(),
-		// Mouse cell-motion intentionally OFF — when enabled the terminal
-		// forwards every click as an escape sequence to the program, which
-		// blocks the user's native click-drag-to-select. With OSC 52 copy
-		// being unreliable across terminals (Warp/Termius gate it behind a
-		// privacy setting), keeping native mouse selection works as the
-		// guaranteed fallback path. If we ever wire bubblezone hit-testing
-		// for clickable buttons, gate it behind a `/mouse on` toggle.
+		// Mouse cell-motion ON so bubblezone hit-testing fires for tab,
+		// button, and asset-row clicks. Native text-select is still
+		// available via the terminal's modifier passthrough — Option (⌥)
+		// on macOS, Shift on Linux/Windows — and is the documented
+		// clipboard fallback when OSC 52 is gated by the terminal.
+		tea.WithMouseCellMotion(),
 		tea.WithEnvironment(environ),
 	)
 	go func() {
