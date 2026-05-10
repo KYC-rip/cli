@@ -4,6 +4,17 @@ All notable changes to **kyc-cli** and **sshwap** are documented here.
 The format is loosely [Keep a Changelog](https://keepachangelog.com/);
 versioning follows [SemVer](https://semver.org/).
 
+## [0.1.32] — 2026-05-10
+
+### Added
+- **`m` toggles select-mode** — runtime switch between mouse-click
+  navigation (default) and native text-select. Some terminals (notably
+  Warp) don't honor the modifier-bypass convention, so a hard toggle
+  is the only reliable path to give users both interactions. Toast
+  shows the active mode; deposit footer hint surfaces `m → select
+  mode`. Implemented via `tea.DisableMouse` /
+  `tea.EnableMouseCellMotion` commands so it just works at runtime.
+
 ## [0.1.31] — 2026-05-10
 
 ### Fixed

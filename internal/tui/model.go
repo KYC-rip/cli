@@ -116,6 +116,9 @@ type Model struct {
 	copyToast     string // ephemeral "📋 copied …" feedback; cleared by clearToastMsg.
 	depositFocus  int    // 0 = address, 1 = QR URL. up/down cycles, enter copies.
 	ghostMode     bool   // true while on tabGhost — routes API calls through /v2/exchange/bridge.
+	selectMode    bool   // 'm' toggles: when true, mouse reporting is off so the user's
+	                     // terminal handles native click-drag-to-select. Tabs/buttons stop
+	                     // firing on click while it's on; 'm' again restores click nav.
 
 	// track tab
 	trackIn    textinput.Model
@@ -332,6 +335,24 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "a":
 				m.tab = tabAbout
 				return m, nil
+			case "m":
+				// Runtime toggle: clicks-vs-text-select. Some terminals
+				// (notably Warp) don't honor the modifier-bypass
+				// convention for native selection, so a hard toggle is
+				// the only reliable way to get both interactions.
+				m.selectMode = !m.selectMode
+				if m.selectMode {
+					m.copyToast = "🖱 select mode — drag to select · m for clicks"
+					return m, tea.Batch(
+						tea.DisableMouse,
+						tea.Tick(3*time.Second, func(_ time.Time) tea.Msg { return clearToastMsg{} }),
+					)
+				}
+				m.copyToast = "🖱 click mode — m for select"
+				return m, tea.Batch(
+					tea.EnableMouseCellMotion,
+					tea.Tick(2*time.Second, func(_ time.Time) tea.Msg { return clearToastMsg{} }),
+				)
 			}
 		}
 
@@ -1059,7 +1080,7 @@ func (m Model) renderOrdered() string {
 		styleDim.Render("Send"),
 		styleOk.Render(fmt.Sprintf("%s %s", fmtAmt(t.FromAmount), strings.ToUpper(t.FromTicker))),
 		"",
-		styleDim.Render("To deposit address  ") + styleDim.Render("(↑↓ enter copy · ⌥/shift+drag selects)"),
+		styleDim.Render("To deposit address  ") + styleDim.Render("(↑↓ enter copy · m → select mode)"),
 		addrCaret + addrLine,
 		"",
 		qrCaret + qrLink,
