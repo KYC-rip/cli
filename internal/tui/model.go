@@ -902,7 +902,7 @@ func tabRender(name string, active bool) string {
 func (m Model) renderSwap() string {
 	body := m.renderSwapBody()
 	if m.ghostMode {
-		banner := styleGhostBanner.Render("☠ GHOST MODE  ·  privacy-routed  ·  no provider sees full path")
+		banner := styleGhostBanner.Render("[GHOST]  privacy-routed  ·  no provider sees full path")
 		body = banner + "\n\n" + body
 	}
 	return body

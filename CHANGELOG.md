@@ -4,6 +4,17 @@ All notable changes to **kyc-cli** and **sshwap** are documented here.
 The format is loosely [Keep a Changelog](https://keepachangelog.com/);
 versioning follows [SemVer](https://semver.org/).
 
+## [0.1.37] — 2026-05-11
+
+### Fixed
+- **Ghost-mode banner border renders correctly.** The banner had a
+  pinned `Width(cardInnerWidth)` and a skull glyph (☠) prefix. On
+  terminals where ☠ measures as 2 cells but lipgloss scores it as 1,
+  content overflowed the pinned inner width and the right/bottom
+  borders of the box never drew. Dropped the fixed width (banner now
+  sizes to content) and replaced ☠ with an ASCII `[GHOST]` label
+  immune to emoji presentation rules.
+
 ## [0.1.36] — 2026-05-11
 
 ### Changed

@@ -84,15 +84,16 @@ var (
 	styleOk  = lipgloss.NewStyle().Foreground(colSuccess)
 	styleDim = lipgloss.NewStyle().Foreground(colMuted)
 
-	// Ghost-mode banner: skull + accent text, dim border to distinguish
-	// from regular swap flow. Width pinned to inner card so it doesn't
-	// reflow when content shifts.
+	// Ghost-mode banner: accent text, accent border. Auto-sized to
+	// content — pinning Width to cardInnerWidth broke the right and
+	// bottom borders on terminals where the skull glyph (☠) measures
+	// as 2 cells but lipgloss's StringWidth scores it as 1, causing the
+	// content to overflow the pinned inner width.
 	styleGhostBanner = lipgloss.NewStyle().
 				Foreground(colAccent).
 				Border(lipgloss.NormalBorder()).
 				BorderForeground(colAccent).
-				Padding(0, 1).
-				Width(cardInnerWidth)
+				Padding(0, 1)
 
 	// Route-bucket cards: idle = dim border, active = yellow border.
 	styleRouteCard = lipgloss.NewStyle().
