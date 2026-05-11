@@ -29,9 +29,12 @@ case "$(uname -m)" in
   *) echo "[install.sh] unsupported arch: $(uname -m)" >&2; exit 1 ;;
 esac
 
-# Resolve version → tag
+# Resolve version → tag via the HTML 302 redirect endpoint
+# (github.com/.../releases/latest → /releases/tag/<tag>). The
+# api.github.com endpoint is rate-limited to 60 unauthenticated reqs
+# per IP per hour, which users behind shared NATs blow through.
 if [ "$VERSION" = "latest" ]; then
-  TAG=$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" | sed -nE 's/.*"tag_name": *"([^"]+)".*/\1/p' | head -1)
+  TAG=$(curl -sS -o /dev/null -w '%{redirect_url}' "https://github.com/${REPO}/releases/latest" | sed -nE 's|.*/tag/([^/]+)$|\1|p')
   if [ -z "$TAG" ]; then
     echo "[install.sh] could not resolve latest release tag" >&2
     exit 1
