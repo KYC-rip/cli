@@ -4,6 +4,17 @@ All notable changes to **kyc-cli** and **sshwap** are documented here.
 The format is loosely [Keep a Changelog](https://keepachangelog.com/);
 versioning follows [SemVer](https://semver.org/).
 
+## [0.1.35] — 2026-05-11
+
+### Fixed
+- **`kyc-cli update` no longer hits `api.github.com` (rate-limited).**
+  Users behind shared NATs (Cloudflare WARP, mobile carriers, office
+  networks) were hitting the 60-req/hour unauthenticated limit on
+  `api.github.com/repos/.../releases/latest`. Switched to the HTML
+  `github.com/.../releases/latest` endpoint, which 302-redirects to
+  the latest tag and is not rate-limited the same way. The tag is
+  parsed from the redirect Location header — no API key, no JSON.
+
 ## [0.1.34] — 2026-05-11
 
 ### Fixed

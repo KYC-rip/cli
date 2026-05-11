@@ -20,7 +20,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -34,49 +33,65 @@ import (
 )
 
 const (
-	repo           = "kyc-rip/cli"
-	releaseAPI     = "https://api.github.com/repos/" + repo + "/releases/latest"
-	checkCacheFile = "kyc-cli/lastcheck"
-	checkInterval  = 24 * time.Hour
+	repo = "kyc-rip/cli"
+	// releaseLatestURL is the HTML endpoint that 302-redirects to the
+	// latest non-draft, non-prerelease tag. We use it instead of
+	// api.github.com/.../releases/latest because the API endpoint is
+	// rate-limited to 60 unauthenticated requests per IP per hour —
+	// users behind shared NATs (Cloudflare WARP, mobile carriers,
+	// office networks) blow through that quickly and the auto-update
+	// nudge starts failing visibly.
+	releaseLatestURL = "https://github.com/" + repo + "/releases/latest"
+	checkCacheFile   = "kyc-cli/lastcheck"
+	checkInterval    = 24 * time.Hour
 )
 
-// LatestRelease is the slice of the GitHub releases API we use.
-type LatestRelease struct {
-	TagName    string `json:"tag_name"`
-	HTMLURL    string `json:"html_url"`
-	Prerelease bool   `json:"prerelease"`
-	Draft      bool   `json:"draft"`
-}
-
-// CheckLatest queries GitHub for the most recent (non-draft, non-pre)
-// release. Returns ("", nil) if there's nothing newer than `current`.
-// Returns the tag (e.g. "v0.1.6") if an upgrade is available.
+// CheckLatest resolves the latest non-draft, non-prerelease release tag
+// via the HTML redirect endpoint (no API rate limit). Returns ("", nil)
+// if `current` is already up to date.
 func CheckLatest(ctx context.Context, current string) (string, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, releaseAPI, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, releaseLatestURL, nil)
 	if err != nil {
 		return "", err
 	}
-	req.Header.Set("Accept", "application/vnd.github+json")
 	req.Header.Set("User-Agent", "kyc-cli-self-update")
-	resp, err := (&http.Client{Timeout: 4 * time.Second}).Do(req)
+	// Disable automatic redirect following — we want the Location header
+	// from the first 302 so we can read the tag without downloading the
+	// full HTML release page (small, but pointless).
+	client := &http.Client{
+		Timeout: 4 * time.Second,
+		CheckRedirect: func(*http.Request, []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+	resp, err := client.Do(req)
 	if err != nil {
 		return "", err
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != 200 {
+	if resp.StatusCode != http.StatusFound && resp.StatusCode != http.StatusMovedPermanently {
 		return "", fmt.Errorf("github releases: %s", resp.Status)
 	}
-	var rel LatestRelease
-	if err := json.NewDecoder(resp.Body).Decode(&rel); err != nil {
-		return "", err
+	loc := resp.Header.Get("Location")
+	if loc == "" {
+		return "", errors.New("github releases: missing Location header")
 	}
-	if rel.Draft || rel.Prerelease || rel.TagName == "" {
+	// Location looks like ".../releases/tag/v0.1.34" — pull the trailing
+	// path segment as the tag. If GitHub ever returns the bare
+	// "/releases" path (no releases yet), `tag` will end up "releases"
+	// and semverNewer will reject it.
+	idx := strings.LastIndex(loc, "/")
+	if idx < 0 || idx == len(loc)-1 {
+		return "", fmt.Errorf("github releases: bad redirect %q", loc)
+	}
+	tag := loc[idx+1:]
+	if !strings.HasPrefix(tag, "v") {
 		return "", nil
 	}
-	if !semverNewer(rel.TagName, current) {
+	if !semverNewer(tag, current) {
 		return "", nil
 	}
-	return rel.TagName, nil
+	return tag, nil
 }
 
 // CheckLatestThrottled is CheckLatest with a 24h-on-disk cache so we
