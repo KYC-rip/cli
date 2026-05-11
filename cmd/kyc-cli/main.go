@@ -118,6 +118,12 @@ func runUpdate(args []string) {
 	tag, err := update.CheckLatest(ctx, version)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "update check failed:", err)
+		fmt.Fprintln(os.Stderr)
+		fmt.Fprintln(os.Stderr, "fallback — install the latest release directly:")
+		fmt.Fprintln(os.Stderr, "  curl -fsSL https://raw.githubusercontent.com/kyc-rip/cli/master/scripts/install.sh | sh")
+		fmt.Fprintln(os.Stderr)
+		fmt.Fprintln(os.Stderr, "or pin a specific version:")
+		fmt.Fprintln(os.Stderr, "  curl -fsSL https://raw.githubusercontent.com/kyc-rip/cli/master/scripts/install.sh | sh -s v0.1.34")
 		os.Exit(1)
 	}
 	if tag == "" {

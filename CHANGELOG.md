@@ -4,6 +4,16 @@ All notable changes to **kyc-cli** and **sshwap** are documented here.
 The format is loosely [Keep a Changelog](https://keepachangelog.com/);
 versioning follows [SemVer](https://semver.org/).
 
+## [0.1.36] — 2026-05-11
+
+### Changed
+- **`kyc-cli update` prints an `install.sh` fallback on check failure.**
+  Network timeouts, transient API errors, or a future rate-limit
+  surface now end with a concrete escape hatch — a one-line
+  `curl ... | sh` that hits the CDN download path directly. The
+  background nudge stays silent (we don't want to pester users on
+  flaky networks).
+
 ## [0.1.35] — 2026-05-11
 
 ### Fixed
