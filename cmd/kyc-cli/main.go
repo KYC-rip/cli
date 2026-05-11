@@ -75,8 +75,19 @@ func main() {
 
 	cli := api.New(api.WithBase(*apiBase), api.WithAPIKey(*apiKey), api.WithTimeout(*timeout))
 	out := tui.NewLockedWriter(os.Stdout)
+	// Seed terminal dimensions on the model so View() renders on the
+	// very first frame. Without these, View returns "" until bubbletea's
+	// initial WindowSizeMsg lands — which on macOS Terminal + alt-screen
+	// can be delayed enough to look like a permanently blank screen.
+	cols, rows, _ := term.GetSize(int(os.Stdout.Fd()))
 	prog := tea.NewProgram(
-		tui.New(tui.Config{Client: cli, DryRun: *dryRun, ClipboardWriter: out}),
+		tui.New(tui.Config{
+			Client:          cli,
+			DryRun:          *dryRun,
+			ClipboardWriter: out,
+			InitialWidth:    cols,
+			InitialHeight:   rows,
+		}),
 		tea.WithAltScreen(),
 		// Mouse cell-motion ON so bubblezone tab/button clicks register.
 		// Hold Option (⌥) on macOS or Shift on Linux/Windows while

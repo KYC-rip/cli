@@ -4,6 +4,17 @@ All notable changes to **kyc-cli** and **sshwap** are documented here.
 The format is loosely [Keep a Changelog](https://keepachangelog.com/);
 versioning follows [SemVer](https://semver.org/).
 
+## [0.1.34] — 2026-05-11
+
+### Fixed
+- **Local `kyc-cli` no longer launches into a blank screen.** `View()`
+  short-circuits to `""` until `m.width > 0`. The SSH host seeds
+  width/height from the PTY; the local CLI didn't, so on terminals
+  where bubbletea's initial `WindowSizeMsg` is delayed (macOS Terminal
+  with alt-screen, some Warp configs) the user saw nothing until they
+  resized the window. Now seeds dimensions via
+  `golang.org/x/term.GetSize` before constructing the program.
+
 ## [0.1.33] — 2026-05-10
 
 ### Changed
