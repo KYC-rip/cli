@@ -86,6 +86,12 @@ type Config struct {
 	// embedding them in View() output — bubbletea's renderer is not a
 	// safe transport for device-control sequences.
 	ClipboardWriter *LockedWriter
+
+	// LocalActions enables OS-level clipboard/browser operations. This is
+	// only valid for the local kyc-cli binary; the SSH host cannot touch
+	// the user's workstation clipboard or browser except through terminal
+	// escape sequences.
+	LocalActions bool
 }
 
 // --- model ---
@@ -99,26 +105,26 @@ type Model struct {
 	tab           tab
 
 	// wizard state
-	state   swapState
-	from    string // "BTC" or "USDT-TRC20"
-	to      string
-	amtIn   textinput.Model
-	addrIn  textinput.Model
-	memoIn  textinput.Model
+	state        swapState
+	from         string // "BTC" or "USDT-TRC20"
+	to           string
+	amtIn        textinput.Model
+	addrIn       textinput.Model
+	memoIn       textinput.Model
 	quote        *api.Estimate
 	picks        routePicks
 	routePick    routeMode // currently-selected bucket; "" before quote arrives
 	trade        *api.Trade
 	swapErr      string
 	pollOn       bool
-	qrFullScreen  bool   // 'q' in stOrdered or Track expands the QR to fill the terminal.
-	qrImageMode   bool   // 'g' toggles iTerm2 inline-image protocol — Warp/iTerm/WezTerm.
-	copyToast     string // ephemeral "📋 copied …" feedback; cleared by clearToastMsg.
-	depositFocus  int    // 0 = address, 1 = QR URL. up/down cycles, enter copies.
-	ghostMode     bool   // true while on tabGhost — routes API calls through /v2/exchange/bridge.
-	selectMode    bool   // 'm' toggles: when true, mouse reporting is off so the user's
-	                     // terminal handles native click-drag-to-select. Tabs/buttons stop
-	                     // firing on click while it's on; 'm' again restores click nav.
+	qrFullScreen bool   // 'q' in stOrdered or Track expands the QR to fill the terminal.
+	qrImageMode  bool   // 'g' toggles iTerm2 inline-image protocol — Warp/iTerm/WezTerm.
+	copyToast    string // ephemeral "📋 copied …" feedback; cleared by clearToastMsg.
+	depositFocus int    // 0 = address, 1 = QR URL. up/down cycles, enter copies.
+	ghostMode    bool   // true while on tabGhost — routes API calls through /v2/exchange/bridge.
+	selectMode   bool   // 'm' toggles: when true, mouse reporting is off so the user's
+	// terminal handles native click-drag-to-select. Tabs/buttons stop
+	// firing on click while it's on; 'm' again restores click nav.
 
 	// track tab
 	trackIn    textinput.Model
@@ -500,23 +506,21 @@ func (m Model) handleDepositKeys(msg tea.KeyMsg) (Model, tea.Cmd, bool) {
 		}
 		return m, nil, true
 	case "enter":
-		var label, payload string
+		var label string
 		if m.depositFocus == 0 {
 			label = "📋 address copied to clipboard"
-			payload = activeAddr
+			m.copyText(activeAddr)
 		} else {
-			label = "📋 QR URL copied to clipboard"
-			payload = qrBrowserURL(activeAddr)
+			label = m.openBrowser(qrBrowserURL(activeAddr))
 		}
-		m.writeClipboard(payload)
 		m.copyToast = label
 		return m, tea.Tick(2*time.Second, func(_ time.Time) tea.Msg { return clearToastMsg{} }), true
 	case "c":
-		m.writeClipboard(activeAddr)
+		m.copyText(activeAddr)
 		m.copyToast = "📋 address copied to clipboard"
 		return m, tea.Tick(2*time.Second, func(_ time.Time) tea.Msg { return clearToastMsg{} }), true
 	case "C":
-		m.writeClipboard(qrBrowserURL(activeAddr))
+		m.copyText(qrBrowserURL(activeAddr))
 		m.copyToast = "📋 QR URL copied to clipboard"
 		return m, tea.Tick(2*time.Second, func(_ time.Time) tea.Msg { return clearToastMsg{} }), true
 	}
@@ -526,11 +530,31 @@ func (m Model) handleDepositKeys(msg tea.KeyMsg) (Model, tea.Cmd, bool) {
 // writeClipboard emits the OSC 52 clipboard-write escape directly to the
 // program's output writer (mutex-protected so it doesn't race with
 // bubbletea's renderer). View() never sees the escape.
-func (m Model) writeClipboard(text string) {
-	if m.cfg.ClipboardWriter == nil || text == "" {
+func (m Model) copyText(text string) {
+	if text == "" {
 		return
 	}
-	_, _ = m.cfg.ClipboardWriter.Write([]byte(osc52Clipboard(text)))
+	if m.cfg.LocalActions && writeLocalClipboard(text) == nil {
+		return
+	}
+	m.writeOSC52(text)
+}
+
+func (m Model) openBrowser(rawURL string) string {
+	if rawURL == "" {
+		return ""
+	}
+	if m.cfg.LocalActions && openLocalBrowser(rawURL) == nil {
+		return "↗ opened QR in browser"
+	}
+	m.writeOSC52(rawURL)
+	return "📋 QR URL copied — paste into browser"
+}
+
+func (m Model) writeOSC52(text string) {
+	if m.cfg.ClipboardWriter != nil && text != "" {
+		_, _ = m.cfg.ClipboardWriter.Write([]byte(osc52Clipboard(text)))
+	}
 }
 
 func (m Model) updateSwap(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -560,7 +584,6 @@ func (m Model) updateSwap(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	}
-
 
 	switch m.state {
 	case stPickFrom, stPickTo:
@@ -1078,7 +1101,7 @@ func (m Model) renderOrdered() string {
 		styleDim.Render("Send"),
 		styleOk.Render(fmt.Sprintf("%s %s", fmtAmt(t.FromAmount), strings.ToUpper(t.FromTicker))),
 		"",
-		styleDim.Render("To deposit address  ") + styleDim.Render("(↑↓ enter copy · ctrl+s → select mode)"),
+		styleDim.Render("To deposit address  ") + styleDim.Render("(↑↓ move · enter copy/open · c copy address · C copy QR URL · ctrl+s select)"),
 		addrCaret + addrLine,
 		"",
 		qrCaret + qrLink,

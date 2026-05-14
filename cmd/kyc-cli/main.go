@@ -85,6 +85,7 @@ func main() {
 			Client:          cli,
 			DryRun:          *dryRun,
 			ClipboardWriter: out,
+			LocalActions:    true,
 			InitialWidth:    cols,
 			InitialHeight:   rows,
 		}),
