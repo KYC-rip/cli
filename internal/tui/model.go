@@ -3,6 +3,7 @@ package tui
 import (
 	"context"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -828,11 +829,35 @@ func isTerminal(status string) bool {
 	return false
 }
 
+// fmtAmt renders a crypto amount with magnitude-aware precision so the
+// route-card line stays on one row. Float64 round-trip precision (the
+// previous `-1` flag) emitted 17 digits for values like 0.03507851359904113,
+// which wrapped the card and broke the box-drawing border. Cap precision
+// by magnitude, then strip trailing zeros so neat values print short.
 func fmtAmt(n float64) string {
 	if n == 0 {
 		return "—"
 	}
-	return strconv.FormatFloat(n, 'f', -1, 64)
+	abs := math.Abs(n)
+	var prec int
+	switch {
+	case abs >= 1000:
+		prec = 2
+	case abs >= 1:
+		prec = 4
+	case abs >= 0.01:
+		prec = 6
+	case abs >= 0.0001:
+		prec = 8
+	default:
+		prec = 10
+	}
+	s := strconv.FormatFloat(n, 'f', prec, 64)
+	if strings.Contains(s, ".") {
+		s = strings.TrimRight(s, "0")
+		s = strings.TrimRight(s, ".")
+	}
+	return s
 }
 
 // --- view ---
