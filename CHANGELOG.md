@@ -4,6 +4,20 @@ All notable changes to **kyc-cli** and **sshwap** are documented here.
 The format is loosely [Keep a Changelog](https://keepachangelog.com/);
 versioning follows [SemVer](https://semver.org/).
 
+## [0.1.40] — 2026-05-18
+
+### Changed
+- **Tor + I2P endpoints rotated to real vanity-prefix addresses.** The
+  previously advertised onion / b32.i2p strings were placeholders — no
+  hidden-service infra had been provisioned, so connecting to them
+  resolved to nothing. New endpoints (both `kyccli` vanity-prefix):
+  `kyccli2b6y3iwxhkpoetzfyozmmrwipaakznyvhgl7a264l7tflvzqad.onion` /
+  `kyccliymrfjyumorhpfujsqfvbb2vakajklhw5kfomec7umwhpgq.b32.i2p`.
+  Updated in README, SECURITY, the TUI About tab, the `swap.kyc.rip`
+  landing HTML, and the `kyc.rip/cli` website. Server-side setup scripts
+  in `deploy/` (hidden-services-install, vanity-mine, vanity-swap,
+  publish-hostnames).
+
 ## [0.1.37] — 2026-05-11
 
 ### Fixed

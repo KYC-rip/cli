@@ -58,8 +58,8 @@ The hardening we apply:
 ## Channels
 
 - **clearnet**: `ssh swap.kyc.rip`
-- **tor**: `torsocks ssh ozz6kgrbp6epsxhrid456udvwj3vzecb4f7jz5orxcrpxn4f2bejuyid.onion`
-- **i2p**: `ssh r4ziaqaec7w73x7ltpz5pi5kswclgjdw6ioyz25mbtrisprneqhq.b32.i2p` (via i2pd SOCKS proxy)
+- **tor**: `torsocks ssh kyccli2b6y3iwxhkpoetzfyozmmrwipaakznyvhgl7a264l7tflvzqad.onion`
+- **i2p**: `ssh kyccliymrfjyumorhpfujsqfvbb2vakajklhw5kfomec7umwhpgq.b32.i2p` (via i2pd SOCKS proxy)
 
 All three channels go to the same SSH server with the same host key —
 verify the fingerprint regardless of which channel you choose.

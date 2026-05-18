@@ -45,8 +45,8 @@ not proceed** — that's a man-in-the-middle.
 | Channel | Connect |
 |---|---|
 | clearnet | `ssh swap.kyc.rip` |
-| Tor | `torsocks ssh ozz6kgrbp6epsxhrid456udvwj3vzecb4f7jz5orxcrpxn4f2bejuyid.onion` |
-| I2P | `ssh -o ProxyCommand='nc -X 5 -x 127.0.0.1:4447 %h %p' r4ziaqaec7w73x7ltpz5pi5kswclgjdw6ioyz25mbtrisprneqhq.b32.i2p` |
+| Tor | `torsocks ssh kyccli2b6y3iwxhkpoetzfyozmmrwipaakznyvhgl7a264l7tflvzqad.onion` |
+| I2P | `ssh -o ProxyCommand='nc -X 5 -x 127.0.0.1:4447 %h %p' kyccliymrfjyumorhpfujsqfvbb2vakajklhw5kfomec7umwhpgq.b32.i2p` |
 
 All three channels go to the same SSH server with the same host key.
 
